@@ -1,0 +1,44 @@
+name: Release macOS Build
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Build Application
+        run: |
+          chmod +x build_app.sh
+          ./build_app.sh
+
+      - name: Package App Bundle
+        run: |
+          zip -r mac-cast-macOS.zip Macast.app
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: mac-cast-macOS.zip
+          name: Release ${{ github.ref_name }}
+          body: |
+            ## mac-cast macOS 深度优化版发布
+            
+            这是基于 GitHub Actions 自动构建并发布的最新版本。
+            
+            ### 📥 安装方法
+            1. 下载下方的 `mac-cast-macOS.zip` 压缩包。
+            2. 解压后将 `Macast.app` 拖入您的 **应用程序 (Applications)** 文件夹。
+            3. 双击打开运行，在屏幕右上角菜单栏进行控制。
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
