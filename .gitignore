@@ -130,3 +130,8 @@ dmypy.json
 
 bin
 mpv-latest.tar.gz
+
+# macOS and local zip/app files
+.DS_Store
+Macast.app/
+*.zip

@@ -1,3 +1,10 @@
+//
+//  MacastApp.swift
+//  Macast
+//
+//  Modified & optimized by anyi11 (https://github.com/anyi11/mac-cast)
+//
+
 import Cocoa
 import SwiftUI
 import Combine
@@ -98,6 +105,9 @@ class SettingsManager: ObservableObject {
         do {
             let data = try Data(contentsOf: fileURL)
             settings = try JSONDecoder().decode(MacastSettings.self, from: data)
+            if settings.Macast_Renderer == "MPV" {
+                settings.Macast_Renderer = "MPV Renderer"
+            }
         } catch {
             print("Could not load settings, using defaults.")
             save()
@@ -257,7 +267,13 @@ class LogManager: ObservableObject {
                     }
                 }
                 
-                let linesToKeep = 100
+                // Automatically truncate the log file on disk if it exceeds 50 lines
+                if allLines.count > 50 {
+                    let last50LinesText = Array(allLines.suffix(50)).joined(separator: "\n")
+                    try? last50LinesText.write(to: url, atomically: true, encoding: .utf8)
+                }
+
+                let linesToKeep = 50
                 let startIdx = max(0, filtered.count - linesToKeep)
                 let finalLines = Array(filtered[startIdx..<filtered.count])
                 
@@ -268,7 +284,10 @@ class LogManager: ObservableObject {
                 }
                 
                 let rawText = finalLines.joined(separator: "\n")
-                let finalVideos = Array(videos.reversed())
+                var finalVideos = Array(videos.reversed())
+                if finalVideos.count > 50 {
+                    finalVideos = Array(finalVideos.prefix(50))
+                }
                 
                 DispatchQueue.main.async {
                     self?.logLines = structuredLines.isEmpty ? [LogLine(id: 0, text: "暂无投屏记录。")] : structuredLines
@@ -420,16 +439,471 @@ class DownloadManager: NSObject, ObservableObject, URLSessionDownloadDelegate {
     }
 }
 
+// MARK: - Playback Manager
+class PlaybackManager: ObservableObject {
+    static let shared = PlaybackManager()
+    
+    @Published var hasActiveVideo = false
+    @Published var currentTitle = ""
+    @Published var currentURI = ""
+    @Published var currentTime: Double = 0
+    @Published var duration: Double = 0
+    @Published var isPlaying = false
+    
+    var isDragging = false
+    private var timer: Timer?
+    
+    private var port: Int {
+        return SettingsManager.shared.settings.ApplicationPort
+    }
+    
+    func startPolling() {
+        guard timer == nil else { return }
+        pollStatus()
+        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            self?.pollStatus()
+        }
+    }
+    
+    func stopPolling() {
+        timer?.invalidate()
+        timer = nil
+    }
+    
+    func pollStatus() {
+        guard MacastProcessManager.shared.isRunning else {
+            DispatchQueue.main.async {
+                if self.hasActiveVideo {
+                    self.hasActiveVideo = false
+                }
+            }
+            return
+        }
+        
+        let port = self.port
+        let endpoint = "http://127.0.0.1:\(port)/AVTransport/action"
+        guard let requestURL = URL(string: endpoint) else { return }
+        
+        // 1. GetPositionInfo
+        var posRequest = URLRequest(url: requestURL)
+        posRequest.httpMethod = "POST"
+        posRequest.setValue("text/xml; charset=\"utf-8\"", forHTTPHeaderField: "Content-Type")
+        posRequest.setValue("\"urn:schemas-upnp-org:service:AVTransport:1#GetPositionInfo\"", forHTTPHeaderField: "SOAPACTION")
+        
+        let posBody = """
+        <?xml version="1.0" encoding="utf-8"?>
+        <s:Envelope s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
+          <s:Body>
+            <u:GetPositionInfo xmlns:u="urn:schemas-upnp-org:service:AVTransport:1">
+              <InstanceID>0</InstanceID>
+            </u:GetPositionInfo>
+          </s:Body>
+        </s:Envelope>
+        """
+        posRequest.httpBody = posBody.data(using: .utf8)
+        
+        URLSession.shared.dataTask(with: posRequest) { [weak self] data, response, error in
+            guard let self = self else { return }
+            if let data = data, let xmlString = String(data: data, encoding: .utf8) {
+                let trackURI = self.extractTagValue(from: xmlString, tag: "TrackURI") ?? ""
+                let relTimeStr = self.extractTagValue(from: xmlString, tag: "RelTime") ?? "00:00:00"
+                let durationStr = self.extractTagValue(from: xmlString, tag: "TrackDuration") ?? "00:00:00"
+                
+                DispatchQueue.main.async {
+                    if !trackURI.isEmpty && trackURI != "NOT_IMPLEMENTED" {
+                        self.currentURI = trackURI
+                        self.duration = self.parseTime(durationStr)
+                        if !self.isDragging {
+                            self.currentTime = self.parseTime(relTimeStr)
+                        }
+                        
+                        // Find matching title from castedVideos
+                        if let matched = LogManager.shared.castedVideos.first(where: { $0.url == trackURI }) {
+                            self.currentTitle = matched.title
+                        } else {
+                            if let urlObj = URL(string: trackURI) {
+                                self.currentTitle = urlObj.lastPathComponent
+                            } else {
+                                self.currentTitle = "投屏视频"
+                            }
+                        }
+                        self.hasActiveVideo = true
+                    } else {
+                        self.hasActiveVideo = false
+                    }
+                }
+            } else {
+                DispatchQueue.main.async {
+                    self.hasActiveVideo = false
+                }
+            }
+        }.resume()
+        
+        // 2. GetTransportInfo
+        var stateRequest = URLRequest(url: requestURL)
+        stateRequest.httpMethod = "POST"
+        stateRequest.setValue("text/xml; charset=\"utf-8\"", forHTTPHeaderField: "Content-Type")
+        stateRequest.setValue("\"urn:schemas-upnp-org:service:AVTransport:1#GetTransportInfo\"", forHTTPHeaderField: "SOAPACTION")
+        
+        let stateBody = """
+        <?xml version="1.0" encoding="utf-8"?>
+        <s:Envelope s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
+          <s:Body>
+            <u:GetTransportInfo xmlns:u="urn:schemas-upnp-org:service:AVTransport:1">
+              <InstanceID>0</InstanceID>
+            </u:GetTransportInfo>
+          </s:Body>
+        </s:Envelope>
+        """
+        stateRequest.httpBody = stateBody.data(using: .utf8)
+        
+        URLSession.shared.dataTask(with: stateRequest) { [weak self] data, response, error in
+            guard let self = self else { return }
+            if let data = data, let xmlString = String(data: data, encoding: .utf8) {
+                let transportState = self.extractTagValue(from: xmlString, tag: "CurrentTransportState") ?? "STOPPED"
+                DispatchQueue.main.async {
+                    self.isPlaying = (transportState == "PLAYING")
+                }
+            }
+        }.resume()
+    }
+    
+    func play() {
+        sendAction("Play", body: """
+        <?xml version="1.0" encoding="utf-8"?>
+        <s:Envelope s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
+          <s:Body>
+            <u:Play xmlns:u="urn:schemas-upnp-org:service:AVTransport:1">
+              <InstanceID>0</InstanceID>
+              <Speed>1</Speed>
+            </u:Play>
+          </s:Body>
+        </s:Envelope>
+        """) { [weak self] success in
+            if success {
+                DispatchQueue.main.async {
+                    self?.isPlaying = true
+                }
+            }
+        }
+    }
+    
+    func pause() {
+        sendAction("Pause", body: """
+        <?xml version="1.0" encoding="utf-8"?>
+        <s:Envelope s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
+          <s:Body>
+            <u:Pause xmlns:u="urn:schemas-upnp-org:service:AVTransport:1">
+              <InstanceID>0</InstanceID>
+            </u:Pause>
+          </s:Body>
+        </s:Envelope>
+        """) { [weak self] success in
+            if success {
+                DispatchQueue.main.async {
+                    self?.isPlaying = false
+                }
+            }
+        }
+    }
+    
+    func seek(to seconds: Double) {
+        let timeString = formatTimeForSeek(seconds)
+        sendAction("Seek", body: """
+        <?xml version="1.0" encoding="utf-8"?>
+        <s:Envelope s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
+          <s:Body>
+            <u:Seek xmlns:u="urn:schemas-upnp-org:service:AVTransport:1">
+              <InstanceID>0</InstanceID>
+              <Unit>REL_TIME</Unit>
+              <Target>\(timeString)</Target>
+            </u:Seek>
+          </s:Body>
+        </s:Envelope>
+        """) { [weak self] success in
+            if success {
+                DispatchQueue.main.async {
+                    self?.currentTime = seconds
+                }
+            }
+        }
+    }
+    
+    func previousVideo() {
+        let videos = LogManager.shared.castedVideos
+        guard !videos.isEmpty, !currentURI.isEmpty else { return }
+        if let currentIdx = videos.firstIndex(where: { $0.url == currentURI }) {
+            let targetIdx = currentIdx + 1
+            if targetIdx < videos.count {
+                playVideo(videos[targetIdx])
+            }
+        } else {
+            if let first = videos.first {
+                playVideo(first)
+            }
+        }
+    }
+    
+    func nextVideo() {
+        let videos = LogManager.shared.castedVideos
+        guard !videos.isEmpty, !currentURI.isEmpty else { return }
+        if let currentIdx = videos.firstIndex(where: { $0.url == currentURI }) {
+            let targetIdx = currentIdx - 1
+            if targetIdx >= 0 {
+                playVideo(videos[targetIdx])
+            }
+        }
+    }
+    
+    private func playVideo(_ video: CastedVideo) {
+        let escapedURI = video.url.replacingOccurrences(of: "&", with: "&amp;")
+                                 .replacingOccurrences(of: "<", with: "&lt;")
+                                 .replacingOccurrences(of: ">", with: "&gt;")
+        
+        let escapedTitle = video.title.replacingOccurrences(of: "&", with: "&amp;")
+                                      .replacingOccurrences(of: "<", with: "&lt;")
+                                      .replacingOccurrences(of: ">", with: "&gt;")
+        
+        let meta = """
+        &lt;DIDL-Lite xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/"&gt;&lt;item id="0" parentID="-1" restricted="1"&gt;&lt;dc:title&gt;\(escapedTitle)&lt;/dc:title&gt;&lt;upnp:class&gt;object.item.videoItem&lt;/upnp:class&gt;&lt;/item&gt;&lt;/DIDL-Lite&gt;
+        """
+        
+        let setURIBody = """
+        <?xml version="1.0" encoding="utf-8"?>
+        <s:Envelope s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
+          <s:Body>
+            <u:SetAVTransportURI xmlns:u="urn:schemas-upnp-org:service:AVTransport:1">
+              <InstanceID>0</InstanceID>
+              <CurrentURI>\(escapedURI)</CurrentURI>
+              <CurrentURIMetaData>\(meta)</CurrentURIMetaData>
+            </u:SetAVTransportURI>
+          </s:Body>
+        </s:Envelope>
+        """
+        
+        sendAction("SetAVTransportURI", body: setURIBody) { [weak self] success in
+            if success {
+                DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 0.3) {
+                    self?.play()
+                }
+            }
+        }
+    }
+    
+    private func sendAction(_ action: String, body: String, completion: ((Bool) -> Void)? = nil) {
+        let port = self.port
+        let endpoint = "http://127.0.0.1:\(port)/AVTransport/action"
+        guard let requestURL = URL(string: endpoint) else {
+            completion?(false)
+            return
+        }
+        
+        var request = URLRequest(url: requestURL)
+        request.httpMethod = "POST"
+        request.setValue("text/xml; charset=\"utf-8\"", forHTTPHeaderField: "Content-Type")
+        request.setValue("\"urn:schemas-upnp-org:service:AVTransport:1#\(action)\"", forHTTPHeaderField: "SOAPACTION")
+        request.httpBody = body.data(using: .utf8)
+        
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error = error {
+                print("Failed to send action \(action): \(error)")
+                completion?(false)
+                return
+            }
+            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
+                completion?(true)
+            } else {
+                completion?(false)
+            }
+        }.resume()
+    }
+    
+    private func extractTagValue(from xml: String, tag: String) -> String? {
+        let pattern = "<\(tag)>([^<]*)</\(tag)>"
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { return nil }
+        let range = NSRange(xml.startIndex..<xml.endIndex, in: xml)
+        if let match = regex.firstMatch(in: xml, options: [], range: range) {
+            if let subRange = Range(match.range(at: 1), in: xml) {
+                return String(xml[subRange])
+            }
+        }
+        return nil
+    }
+    
+    private func parseTime(_ timeStr: String) -> Double {
+        let parts = timeStr.components(separatedBy: ":")
+        var seconds: Double = 0
+        if parts.count == 3 {
+            let h = Double(parts[0]) ?? 0
+            let m = Double(parts[1]) ?? 0
+            let s = Double(parts[2]) ?? 0
+            seconds = h * 3600 + m * 60 + s
+        } else if parts.count == 2 {
+            let m = Double(parts[0]) ?? 0
+            let s = Double(parts[1]) ?? 0
+            seconds = m * 60 + s
+        } else if let s = Double(timeStr) {
+            seconds = s
+        }
+        return seconds
+    }
+    
+    private func formatTimeForSeek(_ seconds: Double) -> String {
+        let s = Int(seconds) % 60
+        let m = (Int(seconds) / 60) % 60
+        let h = Int(seconds) / 3600
+        return String(format: "%02d:%02d:%02d", h, m, s)
+    }
+}
+
+// MARK: - Playback Control Card View
+struct PlaybackControlCardView: View {
+    @ObservedObject var playbackManager = PlaybackManager.shared
+    @State private var localTime: Double = 0
+    
+    var body: some View {
+        VStack(spacing: 12) {
+            // Title
+            HStack {
+                Image(systemName: "play.tv")
+                    .foregroundColor(.blue)
+                    .font(.system(size: 14, weight: .bold))
+                
+                Text(playbackManager.currentTitle)
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundColor(.primary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                
+                Spacer()
+            }
+            
+            // Slider with time labels
+            VStack(spacing: 4) {
+                Slider(value: $localTime, in: 0...max(playbackManager.duration, 1.0), onEditingChanged: { editing in
+                    if editing {
+                        playbackManager.isDragging = true
+                    } else {
+                        playbackManager.seek(to: localTime)
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            playbackManager.isDragging = false
+                        }
+                    }
+                })
+                .accentColor(.blue)
+                
+                HStack {
+                    Text(formatTime(localTime))
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundColor(.secondary)
+                    
+                    Spacer()
+                    
+                    Text(formatTime(playbackManager.duration))
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            // Controls
+            HStack(spacing: 24) {
+                Spacer()
+                
+                // Previous
+                Button(action: {
+                    playbackManager.previousVideo()
+                }) {
+                    Image(systemName: "backward.fill")
+                        .font(.system(size: 16))
+                        .foregroundColor(hasPreviousVideo ? .primary : .secondary.opacity(0.5))
+                }
+                .buttonStyle(PlainButtonStyle())
+                .disabled(!hasPreviousVideo)
+                
+                // Play/Pause
+                Button(action: {
+                    if playbackManager.isPlaying {
+                        playbackManager.pause()
+                    } else {
+                        playbackManager.play()
+                    }
+                }) {
+                    Image(systemName: playbackManager.isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                        .font(.system(size: 32))
+                        .foregroundColor(.blue)
+                }
+                .buttonStyle(PlainButtonStyle())
+                
+                // Next
+                Button(action: {
+                    playbackManager.nextVideo()
+                }) {
+                    Image(systemName: "forward.fill")
+                        .font(.system(size: 16))
+                        .foregroundColor(hasNextVideo ? .primary : .secondary.opacity(0.5))
+                }
+                .buttonStyle(PlainButtonStyle())
+                .disabled(!hasNextVideo)
+                
+                Spacer()
+            }
+        }
+        .padding(12)
+        .background(Color(NSColor.controlBackgroundColor))
+        .cornerRadius(10)
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+        )
+        .onAppear {
+            localTime = playbackManager.currentTime
+        }
+        .onChange(of: playbackManager.currentTime) { newTime in
+            if !playbackManager.isDragging {
+                localTime = newTime
+            }
+        }
+    }
+    
+    private var hasPreviousVideo: Bool {
+        let videos = LogManager.shared.castedVideos
+        guard !videos.isEmpty, !playbackManager.currentURI.isEmpty else { return false }
+        if let currentIdx = videos.firstIndex(where: { $0.url == playbackManager.currentURI }) {
+            return currentIdx + 1 < videos.count
+        }
+        return false
+    }
+    
+    private var hasNextVideo: Bool {
+        let videos = LogManager.shared.castedVideos
+        guard !videos.isEmpty, !playbackManager.currentURI.isEmpty else { return false }
+        if let currentIdx = videos.firstIndex(where: { $0.url == playbackManager.currentURI }) {
+            return currentIdx - 1 >= 0
+        }
+        return false
+    }
+    
+    private func formatTime(_ seconds: Double) -> String {
+        let s = Int(seconds) % 60
+        let m = (Int(seconds) / 60) % 60
+        let h = Int(seconds) / 3600
+        if h > 0 {
+            return String(format: "%02d:%02d:%02d", h, m, s)
+        } else {
+            return String(format: "%02d:%02d", m, s)
+        }
+    }
+}
+
 // MARK: - Popover View
 struct PopoverView: View {
     @ObservedObject var processManager = MacastProcessManager.shared
     @ObservedObject var settingsManager = SettingsManager.shared
+    @ObservedObject var playbackManager = PlaybackManager.shared
     
     var onOpenSettings: () -> Void
     var onOpenLogs: () -> Void
     var onQuit: () -> Void
-    
-    @State private var inputName = ""
     
     var body: some View {
         VStack(spacing: 16) {
@@ -477,28 +951,9 @@ struct PopoverView: View {
             }
             .buttonStyle(PlainButtonStyle())
             
-            // Device Name Configuration Card
-            VStack(alignment: .leading, spacing: 6) {
-                Text("投屏名称 (Device Name)")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                
-                HStack {
-                    TextField("例如: 客厅的Mac", text: $inputName)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                    
-                    Button("应用") {
-                        settingsManager.settings.DLNA_FriendlyName = inputName
-                        settingsManager.save()
-                    }
-                    .disabled(inputName == settingsManager.settings.DLNA_FriendlyName || inputName.isEmpty)
-                }
-            }
-            .padding(10)
-            .background(Color(NSColor.controlBackgroundColor))
-            .cornerRadius(8)
-            .onAppear {
-                inputName = settingsManager.settings.DLNA_FriendlyName
+            // Playback Control Card
+            if playbackManager.hasActiveVideo {
+                PlaybackControlCardView()
             }
             
             Divider()
@@ -539,6 +994,11 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Section(header: Text("通用设置").font(.headline)) {
+                HStack {
+                    Text("投屏名称:")
+                    TextField("例如: 客厅的Mac", text: $settingsManager.settings.DLNA_FriendlyName)
+                }
+                
                 Toggle("开机自启", isOn: Binding(
                     get: { settingsManager.settings.StartAtLogin == 1 },
                     set: { settingsManager.settings.StartAtLogin = $0 ? 1 : 0 }
@@ -585,7 +1045,8 @@ struct SettingsView: View {
                     Text("小").tag(0)
                     Text("中").tag(1)
                     Text("大").tag(2)
-                    Text("全屏").tag(3)
+                    Text("自动").tag(3)
+                    Text("全屏").tag(4)
                 }
                 .pickerStyle(SegmentedPickerStyle())
                 
@@ -989,6 +1450,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         SettingsManager.shared.load()
         MacastProcessManager.shared.start()
+        PlaybackManager.shared.startPolling()
         
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let button = statusItem?.button {
@@ -1064,6 +1526,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     func applicationWillTerminate(_ notification: Notification) {
+        PlaybackManager.shared.stopPolling()
         MacastProcessManager.shared.stop()
     }
 }

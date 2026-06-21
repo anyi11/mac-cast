@@ -1,4 +1,5 @@
 # Copyright (c) 2021 by xfangfang. All Rights Reserved.
+# Modified & optimized by anyi11 (https://github.com/anyi11/mac-cast)
 #
 # MPV Renderer and gui Setting
 #
@@ -72,6 +73,9 @@ class MPVRenderer(Renderer):
         # When the ipc_once_connected is True, it shows that there is no error
         # in the starting parameters of MPV, and there is no need to wait for
         # one second to restart MPV.
+        self.history = []
+        self.history_index = -1
+        self.navigating = False
         self.command_lock = threading.Lock()
         self.renderer_setting = MPVRendererSetting()
         self.mpv_version_newer = True
@@ -118,6 +122,15 @@ class MPVRenderer(Renderer):
     def set_media_url(self, url, start="0"):
         """ data : string
         """
+        if not self.navigating:
+            if self.history_index >= 0 and self.history_index < len(self.history) - 1:
+                self.history = self.history[:self.history_index + 1]
+            if not self.history or self.history[-1]['url'] != url:
+                self.history.append({'url': url, 'title': 'Macast'})
+                self.history_index = len(self.history) - 1
+        self.navigating = False
+        self.update_history_properties()
+
         options = {'start': start}
         player_size = Setting.get(SettingProperty.PlayerSize,
                                   default=SettingProperty.PlayerSize_Normal.value)
@@ -134,6 +147,64 @@ class MPVRenderer(Renderer):
         """
         self.title = data
         self.send_command(['set_property', 'title', data])
+        if self.history_index >= 0 and self.history_index < len(self.history):
+            self.history[self.history_index]['title'] = data
+
+    def play_prev(self):
+        logger.info("play_prev triggered")
+        if self.history_index > 0:
+            self.history_index -= 1
+            self.navigating = True
+            item = self.history[self.history_index]
+            logger.info(f"Navigating to prev video: {item}")
+            self.set_media_url(item['url'])
+            self.set_media_title(item['title'])
+            self.set_media_text(f"Previous: {item['title']}", 2000)
+        else:
+            logger.info("No previous video in history")
+            self.set_media_text("No previous video", 2000)
+
+    def play_next(self):
+        logger.info("play_next triggered")
+        if self.history_index < len(self.history) - 1:
+            self.history_index += 1
+            self.navigating = True
+            item = self.history[self.history_index]
+            logger.info(f"Navigating to next video: {item}")
+            self.set_media_url(item['url'])
+            self.set_media_title(item['title'])
+            self.set_media_text(f"Next: {item['title']}", 2000)
+        else:
+            logger.info("No next video in history")
+            self.set_media_text("No next video", 2000)
+
+    def ensure_uosc_fonts(self):
+        try:
+            if os.name == 'nt':
+                mpv_config_dir = os.path.expandvars(r'%APPDATA%\mpv')
+            else:
+                mpv_config_dir = os.path.expanduser('~/.config/mpv')
+            
+            user_fonts_dir = os.path.join(mpv_config_dir, 'fonts')
+            if not os.path.exists(user_fonts_dir):
+                os.makedirs(user_fonts_dir, exist_ok=True)
+            
+            local_fonts_dir = Setting.get_base_path('fonts')
+            logger.info(f"Local fonts path: {local_fonts_dir}, user fonts path: {user_fonts_dir}")
+            if os.path.exists(local_fonts_dir):
+                import shutil
+                for f in os.listdir(local_fonts_dir):
+                    if f.endswith('.otf') or f.endswith('.ttf'):
+                        src = os.path.join(local_fonts_dir, f)
+                        dst = os.path.join(user_fonts_dir, f)
+                        if not os.path.exists(dst) or os.path.getsize(src) != os.path.getsize(dst):
+                            shutil.copy2(src, dst)
+                            logger.info(f"Successfully copied font {f} to {dst}")
+            else:
+                logger.error(f"Local fonts directory does not exist: {local_fonts_dir}")
+        except Exception as e:
+            logger.error(f"Error copying uosc fonts to user directory: {e}")
+
 
     def set_media_position(self, data):
         """ data : position, 00:00:00
@@ -155,6 +226,13 @@ class MPVRenderer(Renderer):
         :return:
         """
         self.send_command(['set_property', 'speed', data])
+
+    def update_history_properties(self):
+        has_prev = "yes" if self.history_index > 0 else "no"
+        has_next = "yes" if self.history_index < len(self.history) - 1 else "no"
+        logger.info(f"Updating mpv user-data history properties: has-prev={has_prev}, has-next={has_next}")
+        self.send_command(['set_property', 'user-data/macast/has-prev', has_prev])
+        self.send_command(['set_property', 'user-data/macast/has-next', has_next])
 
     def set_observe(self):
         """Set several property that needed observe
@@ -180,6 +258,7 @@ class MPVRenderer(Renderer):
              'sub-visibility'])
 
         self.set_media_volume(Setting.get(SettingProperty.PlayerDefaultVolume, 100))
+        self.update_history_properties()
 
     def update_state(self, res):
         """Update player state from mpv
@@ -255,6 +334,14 @@ class MPVRenderer(Renderer):
                 self.playing = True
                 # self.set_state_transport('TRANSITIONING')
                 cherrypy.engine.publish('renderer_av_uri', self.protocol.get_state_url())
+            elif res['event'] == 'client-message':
+                args = res.get('args', [])
+                logger.info(f"Received client-message: {args}")
+                if args:
+                    if args[0] == 'macast-prev':
+                        self.play_prev()
+                    elif args[0] == 'macast-next':
+                        self.play_next()
             elif res['event'] == 'seek':
                 pass
                 # self.set_state_transport('TRANSITIONING')
@@ -350,6 +437,7 @@ class MPVRenderer(Renderer):
     def start_mpv(self):
         """Start mpv thread
         """
+        self.ensure_uosc_fonts()
         error_time = 3
         while self.running and error_time > 0:
             self.set_state_speed('1')
@@ -384,15 +472,94 @@ class MPVRenderer(Renderer):
             # set lua scripts
             scripts_path = Setting.get_base_path('scripts')
             if os.path.exists(scripts_path):
-                if os.path.exists(os.path.join(scripts_path, 'uosc', 'main.lua')):
+                has_modernz = os.path.exists(os.path.join(scripts_path, 'modernz.lua'))
+                has_uosc = os.path.exists(os.path.join(scripts_path, 'uosc', 'main.lua'))
+
+                if has_modernz:
+                    # Use ModernZ OSC — beautiful modern OSC from GitHub (Samillion/ModernZ)
                     params.append('--osc=no')
                     params.append('--osd-bar=no')
+                    modernz_lang = 'zh-hans' if Setting.get_locale().lower().startswith('zh') else 'default'
+                    params.append('--script-opts='
+                                  f'modernz-language={modernz_lang},'
+                                  'modernz-layout=compact,'
+                                  'modernz-icon_theme=fluent,'
+                                  'modernz-icon_style=mixed,'
+                                  'modernz-hidetimeout=3000,'
+                                  'modernz-fadeduration=150,'
+                                  'modernz-fadein=yes,'
+                                  'modernz-playlist_prev_mbtn_left_command=script-message macast-prev,'
+                                  'modernz-playlist_next_mbtn_left_command=script-message macast-next,'
+                                  'modernz-deadzonesize=0.5,'
+                                  'modernz-visibility=auto,'
+                                  'modernz-osc_color=#0D0D0D,'
+                                  'modernz-seekbarfg_color=#00AEEC,'
+                                  'modernz-seekbarbg_color=#404040,'
+                                  'modernz-seek_handle_color=#00AEEC,'
+                                  'modernz-seek_handle_border_color=#FFFFFF,'
+                                  'modernz-hover_effect_color=#00AEEC,'
+                                  'modernz-nibble_color=#00AEEC,'
+                                  'modernz-nibble_current_color=#FFFFFF,'
+                                  'modernz-playpause_color=#FFFFFF,'
+                                  'modernz-middle_buttons_color=#FFFFFF,'
+                                  'modernz-side_buttons_color=#AAAAAA,'
+                                  'modernz-time_color=#FFFFFF,'
+                                  'modernz-title_color=#FFFFFF,'
+                                  'modernz-seekbar_height=medium,'
+                                  'modernz-seek_handle_size=1.06,'
+                                  'modernz-playpause_size=38,'
+                                  'modernz-midbuttons_size=28,'
+                                  'modernz-sidebuttons_size=25,'
+                                  'modernz-time_font_size=18,'
+                                  'modernz-title_font_size=28,'
+                                  'modernz-osc_height=81,'
+                                  'modernz-osc_fade_strength=85,'
+                                  'modernz-show_title=no,'
+                                  'modernz-window_top_bar=no,'
+                                  'modernz-window_controls=no,'
+                                  'modernz-subtitles_button=no,'
+                                  'modernz-audio_tracks_button=no,'
+                                  'modernz-screenshot_button=no,'
+                                  'modernz-download_button=no,'
+                                  'modernz-info_button=no,'
+                                  'modernz-ontop_button=no,'
+                                  'modernz-loop_button=no,'
+                                  'modernz-shuffle_button=no,'
+                                  'modernz-speed_button=no,'
+                                  'modernz-jump_buttons=no,'
+                                  'modernz-chapter_skip_buttons=no,'
+                                  'modernz-playlist_button=no,'
+                                  'modernz-track_nextprev_buttons=yes,'
+                                  'modernz-volume_control=yes,'
+                                  'modernz-fullscreen_button=yes,'
+                                  'modernz-persistent_progress=no,'
+                                  'modernz-osc_on_start=no,'
+                                  'modernz-showonpause=yes,'
+                                  'modernz-keeponpause=bottombar,'
+                                  'modernz-tick_delay=0.016,'
+                                  'modernz-tick_delay_follow_display_fps=yes,'
+                                  'modernz-slider_rounded_corners=yes,'
+                                  'modernz-hover_effect="size,color"')
+                elif has_uosc:
+                    params.append('--osc=no')
+                    params.append('--osd-bar=no')
+                    params.append('--script-opts='
+                                  'uosc-controls=[play-pause,command:skip_previous:script-binding click_binding/prev?Previous Video,command:skip_next:script-binding click_binding/next?Next Video,cycle:volume_up:mute:no/yes=volume_off!?Mute,space,cycle:fullscreen:fullscreen:no/yes=fullscreen_exit!?Fullscreen],'
+                                  'uosc-timeline_style=line,'
+                                  'uosc-timeline_size=36,'
+                                  'uosc-autohide=no,'
+                                  'uosc-flash_duration=3000,'
+                                  'uosc-color=[foreground=00aeec,foreground_text=ffffff,background=181818],'
+                                  'uosc-opacity=[timeline=1,controls=0,top_bar=0]')
                 for f in os.listdir(scripts_path):
                     path = os.path.join(scripts_path, f)
+                    # Skip modernz-locale.json (not a lua script)
                     if os.path.isfile(path) and f.endswith('.lua'):
                         params.append('--script={}'.format(path))
                     elif os.path.isdir(path) and os.path.exists(os.path.join(path, 'main.lua')):
-                        params.append('--script={}'.format(os.path.join(path, 'main.lua')))
+                        if not (has_modernz and f == 'uosc'):  # skip uosc dir when using modernz
+                            params.append('--script={}'.format(path))
+
 
             # set fonts directory
             fonts_path = Setting.get_base_path('fonts')

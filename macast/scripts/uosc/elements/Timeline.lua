@@ -516,6 +516,18 @@ function Timeline:render()
 	-- Clear thumbnail
 	if not rendered_thumbnail then self:clear_thumbnail() end
 
+	-- Draw modern circular seek handle (B站/streaming style)
+	if visibility > 0 then
+		local knob_x = round(fbx)
+		local knob_y = fcy
+		-- Outer glow / shadow ring (slightly larger, semi-transparent blue)
+		ass:circle(knob_x, knob_y, 10, {color = '00aeec', opacity = visibility * 0.25})
+		-- Blue accent ring
+		ass:circle(knob_x, knob_y, 8, {color = '00aeec', opacity = visibility})
+		-- White inner fill
+		ass:circle(knob_x, knob_y, 5, {color = 'ffffff', opacity = visibility})
+	end
+
 	return ass
 end
 
