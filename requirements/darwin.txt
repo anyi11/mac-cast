@@ -2,6 +2,5 @@ appdirs
 cherrypy
 lxml
 requests
-rumps
 pyperclip
 netifaces

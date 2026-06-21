@@ -34,6 +34,17 @@ class MacastProcessManager: ObservableObject {
             "from macast.macast import cli; from Macast import set_mpv_default_path; set_mpv_default_path(); cli()"
         ]
         
+        var env = ProcessInfo.processInfo.environment
+        if let resourceURL = Bundle.main.resourceURL {
+            let sitePackagesPath = resourceURL.appendingPathComponent("site-packages").path
+            if let existingPythonPath = env["PYTHONPATH"] {
+                env["PYTHONPATH"] = "\(sitePackagesPath):\(existingPythonPath)"
+            } else {
+                env["PYTHONPATH"] = sitePackagesPath
+            }
+        }
+        newProcess.environment = env
+        
         do {
             try newProcess.run()
             self.process = newProcess

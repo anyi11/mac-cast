@@ -7,7 +7,10 @@ from enum import Enum
 from .utils import Setting
 
 if sys.platform == 'darwin':
-    import rumps
+    try:
+        import rumps
+    except ImportError:
+        rumps = None
 else:
     import pystray
     import webbrowser
@@ -111,6 +114,8 @@ class App:
             self.init_platform_others()
 
         if self.platform == Platform.Darwin:
+            if rumps is None:
+                raise ImportError("rumps is required for Darwin GUI mode. Please install it with 'pip3 install rumps'")
             self.app = rumps.App(self.name,
                                  icon=self.icon,
                                  menu=self._build_menu_rumps(self.menu),
