@@ -19,7 +19,7 @@ from cherrypy import _cpnative_server
 from .utils import load_xml, XMLPath, Setting, cherrypy_publish, SETTING_DIR
 
 logger = logging.getLogger("Protocol")
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 SERVICE_STATE_OBSERVED = {
     "AVTransport": ['TransportState',
@@ -697,6 +697,12 @@ class DLNAProtocol(Protocol):
             self.set_state('CurrentTrackMetaData', data['CurrentURIMetaData'].value)
         else:
             self.set_state('CurrentTrackMetaData', metadata.decode())
+        try:
+            import cherrypy
+            client_ip = cherrypy.request.remote.ip
+            logger.info(f"[CAST_EVENT] 设备 {client_ip} 投屏了: {title} | 链接: {uri}")
+        except Exception:
+            logger.info(f"[CAST_EVENT] 投屏了: {title} | 链接: {uri}")
         self.renderer.set_media_title(title)
         self.renderer.set_media_resume()
         self.set_state('CurrentTrackTitle', title)
@@ -926,6 +932,9 @@ class Handler:
             raise cherrypy.HTTPRedirect('/')
         cherrypy.response.headers['Content-Type'] = 'text/html'
         # return self.setting_page
+        locale = Setting.get_locale()
+        if 'zh' in locale.lower():
+            return load_xml(XMLPath.SETTING_PAGE_ZH.value).encode()
         return load_xml(XMLPath.SETTING_PAGE.value).encode()
 
     def POST(self, *args, **kwargs):

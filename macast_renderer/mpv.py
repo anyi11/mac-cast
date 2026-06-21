@@ -16,7 +16,7 @@ import cherrypy
 import gettext
 from enum import Enum
 
-from macast.utils import Setting
+from macast.utils import Setting, SETTING_DIR
 from macast.renderer import Renderer, RendererSetting
 from macast.gui import App, MenuItem
 
@@ -25,7 +25,7 @@ if os.name == 'nt':
     from multiprocessing.connection import PipeConnection
 
 logger = logging.getLogger("MPVRenderer")
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 
 class ObserveProperty(Enum):
@@ -57,7 +57,7 @@ class MPVRenderer(Renderer):
         if os.name == 'nt':
             self.mpv_sock = Setting.get_base_path(r"\\.\pipe\macast_mpvsocket{}".format(mpv_rand))
         else:
-            self.mpv_sock = '/tmp/macast_mpvsocket{}'.format(mpv_rand)
+            self.mpv_sock = os.path.join(SETTING_DIR, 'macast_mpvsocket{}'.format(mpv_rand))
         self.path = path
         self.proc = None
         self.title = Setting.get_friendly_name()
@@ -74,6 +74,23 @@ class MPVRenderer(Renderer):
         # one second to restart MPV.
         self.command_lock = threading.Lock()
         self.renderer_setting = MPVRendererSetting()
+        self.mpv_version_newer = True
+        try:
+            out = subprocess.check_output([self.path, '--version'], stderr=subprocess.STDOUT)
+            out_str = out.decode('utf-8', errors='ignore')
+            import re
+            m = re.search(r'mpv\s+(\d+)\.(\d+)', out_str)
+            if m:
+                major = int(m.group(1))
+                minor = int(m.group(2))
+                if major == 0 and minor < 33:
+                    self.mpv_version_newer = False
+                    logger.info(f"Detected old mpv version: {major}.{minor}. Using old loadfile syntax.")
+                else:
+                    logger.info(f"Detected modern mpv version: {major}.{minor}. Using new loadfile syntax.")
+        except Exception as e:
+            logger.error(f"Failed to detect mpv version, defaulting to modern syntax: {e}")
+
 
     def set_media_stop(self):
         self.send_command(['stop'])
@@ -106,8 +123,11 @@ class MPVRenderer(Renderer):
                                   default=SettingProperty.PlayerSize_Normal.value)
         if player_size == SettingProperty.PlayerSize_FullScreen.value:
             options['fullscreen'] = 'yes'
-        self.send_command(['loadfile', url, 'replace',
-                           ','.join([f'{i}={options[i]}' for i in options])])
+        options_str = ','.join([f'{i}={options[i]}' for i in options])
+        if self.mpv_version_newer:
+            self.send_command(['loadfile', url, 'replace', -1, options_str])
+        else:
+            self.send_command(['loadfile', url, 'replace', options_str])
 
     def set_media_title(self, data):
         """ data : string
@@ -279,7 +299,7 @@ class MPVRenderer(Renderer):
         while self.ipc_running and self.running and self.mpv_thread.is_alive():
             try:
                 time.sleep(0.5)
-                logger.error("mpv ipc socket start connect")
+                logger.error("mpv ipc socket start connect: {}".format(self.mpv_sock))
                 if os.name == 'nt':
                     handler = _winapi.CreateFile(
                         self.mpv_sock,
@@ -364,11 +384,20 @@ class MPVRenderer(Renderer):
             # set lua scripts
             scripts_path = Setting.get_base_path('scripts')
             if os.path.exists(scripts_path):
-                scripts = os.listdir(scripts_path)
-                scripts = filter(lambda s: s.endswith('.lua'), scripts)
-                for script in scripts:
-                    path = os.path.join(scripts_path, script)
-                    params.append('--script={}'.format(path))
+                if os.path.exists(os.path.join(scripts_path, 'uosc', 'main.lua')):
+                    params.append('--osc=no')
+                    params.append('--osd-bar=no')
+                for f in os.listdir(scripts_path):
+                    path = os.path.join(scripts_path, f)
+                    if os.path.isfile(path) and f.endswith('.lua'):
+                        params.append('--script={}'.format(path))
+                    elif os.path.isdir(path) and os.path.exists(os.path.join(path, 'main.lua')):
+                        params.append('--script={}'.format(os.path.join(path, 'main.lua')))
+
+            # set fonts directory
+            fonts_path = Setting.get_base_path('fonts')
+            if os.path.exists(fonts_path):
+                params.append('--sub-fonts-dir={}'.format(fonts_path))
 
             # set player size
             player_size = Setting.get(SettingProperty.PlayerSize,
@@ -398,16 +427,27 @@ class MPVRenderer(Renderer):
                 params.append('--macos-force-dedicated-gpu=yes')
 
             # start mpv
-            logger.info("mpv starting")
+            logger.info("mpv starting with params: {}".format(params))
             cherrypy.engine.publish('mpv_start')
             try:
+                def log_stderr(pipe):
+                    try:
+                        with pipe:
+                            for line in iter(pipe.readline, b''):
+                                logger.error("mpv stderr: {}".format(line.decode(errors='replace').strip()))
+                    except Exception as e:
+                        logger.error("log_stderr error: {}".format(e))
+
                 self.proc = subprocess.Popen(
                     params,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.PIPE,
                     stdin=subprocess.PIPE,
                     env=Setting.get_system_env())
-                self.proc.communicate()
+                
+                t = threading.Thread(target=log_stderr, args=(self.proc.stderr,), daemon=True)
+                t.start()
+                self.proc.wait()
             except Exception as e:
                 logger.error(e)
             logger.info("mpv stopped")
@@ -463,7 +503,10 @@ class MPVRenderer(Renderer):
             if len(protocols) > 0:
                 protocol = protocols.pop()
                 position = protocol.get_state_position()
-                self.send_command(['loadfile', uri, 'replace', f'start={position}'])
+                if self.mpv_version_newer:
+                    self.send_command(['loadfile', uri, 'replace', -1, f'start={position}'])
+                else:
+                    self.send_command(['loadfile', uri, 'replace', f'start={position}'])
             else:
                 self.send_command(['loadfile', uri, 'replace'])
             self.send_command(['set_property', 'title', self.title])

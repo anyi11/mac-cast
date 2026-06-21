@@ -45,7 +45,7 @@ class Sock:
         try:
             self.sock.sendto(response.format(self.ip).encode(), destination)
         except (AttributeError, socket.error) as msg:
-            logger.warning("failure sending out data: from {} to {}".format(self.ip, destination))
+            logger.warning("failure sending out data: from {} to {}, error: {}".format(self.ip, destination, msg))
 
     def close(self):
         try:

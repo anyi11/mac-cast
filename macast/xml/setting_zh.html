@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Macast</title>
+
+    <script src="/assets/vue@2.6.14.js"></script>
+    <script src="/assets/vue-resource@1.5.3.js"></script>
+    <script src="/assets/element-ui@2.15.7.js"></script>
+    <link rel="shortcut icon" type="image/x-icon" href="/assets/icon.png">
+    <link href="https://fonts.font.im/css?family=Noto+Sans" rel="stylesheet">
+    <link rel="stylesheet" type="text/css" href="/assets/element-ui@2.15.7.css">
+</head>
+<body>
+
+<div id="app">
+    <el-tabs v-model="activeIndex" @tab-click="handleSelect">
+        <el-tab-pane label="插件" name="1">
+            <div class="macast-plugins">
+                <macast-plugin v-for="item in plugins" :key="item.renderer"
+                               :item="item" v-on:refresh_plugin="refresh_plugin">
+                </macast-plugin>
+                <p v-if="loading">加载中...</p>
+            </div>
+            <a :href="this.repo_url" target="_blank">
+                <el-tooltip class="item" effect="dark" content="在插件仓库查找更多信息。"
+                            placement="top-end">
+                    <el-button class="macast-plugin-repo" icon="el-icon-search" circle>
+                    </el-button>
+                </el-tooltip>
+            </a>
+        </el-tab-pane>
+        <el-tab-pane label="设置" name="2">
+            <div>
+                <el-input
+                        type="textarea"
+                        :autosize="{ minRows: 2, maxRows: 20}"
+                        placeholder="Macast 启动参数"
+                        v-model="textarea">
+                </el-input>
+
+                <el-tooltip class="item" effect="dark" content="Macast 将被重启" placement="right">
+                    <el-button :loading="connecting" :disabled="!is_json" v-on:click="save" round
+                               style="margin-top: 10px">保存
+                    </el-button>
+                </el-tooltip>
+                <p v-if="!is_json">json 格式错误</p>
+            </div>
+        </el-tab-pane>
+        <el-tab-pane label="日志" name="3">
+            <span>此页面不显示全部日志。如果您想查看完整日志，请通过源码运行或参考</span>
+            <el-link type="primary"
+                     href="https://github.com/xfangfang/Macast/blob/main/.github/ISSUE_TEMPLATE/bug_report.md"
+                     target="_blank">此说明。
+            </el-link>
+            <br/>
+            <br/>
+            <span v-html="macast_log"></span>
+        </el-tab-pane>
+        <el-tab-pane label="帮助" name="4">
+
+            <h1>常见问题 (FAQ)</h1>
+
+            <el-link type="primary"
+                     href="https://github.com/xfangfang/Macast/wiki/FAQ"
+                     target="_blank">本文档可能不是最新版本。请访问 Macast Wiki 获取最新文档。
+            </el-link>
+
+            <p>Macast 仍处于开发早期阶段，因此可能在您的设备上不可用。如果遇到这种情况，请尝试
+                <el-link type="primary" href='https://github.com/xfangfang/Macast/actions'>测试版</el-link>
+                或提交
+                <el-link type="primary" href='https://github.com/xfangfang/Macast/issues/new/choose'>issue</el-link>
+                来帮助我们做得更好。
+            </p>
+            <h2 id='i-dont-know-how-to-use'>我不知道该如何使用</h2>
+            <p>只需打开此应用，状态栏 / 任务栏 / 桌面面板上就会出现一个小图标，然后您就可以从本地 DLNA 客户端（例如手机上的视频软件）将媒体文件投屏到电脑上。<br/>
+            </p>
+            <h2 id='how-to-use-third-party-player-plug-inmacast--v06'>如何使用第三方播放器插件</h2>
+            <ol start=''>
+                <li>从
+                    <el-link type="primary" href='https://github.com/xfangfang/Macast-plugins'>
+                        xfangfang/Macast-plugins
+                    </el-link>
+                    下载您需要的插件
+                </li>
+                <li>打开 Macast，点击设置菜单中的 <code>打开配置目录</code></li>
+                <li>将 <strong>[某个插件].py</strong> 放入 renderer 目录下</li>
+                <li>重启 Macast 并选择您需要的插件</li>
+
+            </ol>
+            <p> 如果找不到您需要的插件，可以查看
+                <el-link type="primary"
+                         href='https://github.com/xfangfang/Macast/wiki/Custom-Renderer'>这里
+                </el-link>
+                学习如何编写自定义播放器插件，非常欢迎您提交 Pull Request。
+            </p>
+            <h2 id='unable-to-find-macast-from-your-dlna-client'>无法从您的 DLNA 客户端中找到 Macast</h2>
+            <ul>
+                <li>检查您的防火墙是否拦截了 Macast。<br/>一个简单的检查防火墙方法是从其他设备访问 Macast 打开的端口（默认是 1068，您可以在设置菜单中找到它）
+                </li>
+                <li>检查您的路由器。<br/>您应当开启 UPnP 并关闭 AP 隔离。</li>
+                <li>软件问题。<br/>如果您使用的是 iOS 设备，请确保已打开该应用 <strong>查找并连接本地网络上的设备</strong> 的权限。<br/>另外，在某些应用中，您需要等待 30 秒以上才能找到 Macast，请耐心等待。
+                </li>
+                <li>UDP 组播问题。<br/>据说 Windows 和某些路由器会存在适配问题，导致 Windows 无法加入组播。在这种情况下，您需要修改 Windows 注册表以强制将 IGMP 版本更改为 v2。
+                </li>
+                <li>多网卡或复杂的网络状况。<br/>确保 Macast 在单网卡以及与您的 DLNA 客户端在同一局域网下可以使用。对于更复杂情况的解决方案仍在开发中。
+                </li>
+
+            </ul>
+            <h2 id='crash-at-startup'>启动时崩溃</h2>
+            <p> Macast 默认打开 1068 端口。当您的电脑上存在端口冲突时，应用会崩溃。请手动设置应用端口，然后 Macast 将会从配置文件中加载您指定的端口。</p>
+            <h2 id='unable-to-close-or-unresponsive'>无法关闭或无响应</h2>
+            <p> 使用第三方播放器插件时，插件通常需要打开更多的线程或进程，导致应用退出时出现无响应的问题，这通常是由插件本身引起的。</p>
+            <h2 id='where-is-the-configuration-file-located'>配置文件放在哪里</h2>
+            <figure>
+                <table>
+                    <thead>
+                    <tr>
+                        <th>平台</th>
+                        <th>路径</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr>
+                        <td>MacOS</td>
+                        <td><code>$HOME/Library/Application\ Support/Macast/</code></td>
+                    </tr>
+                    <tr>
+                        <td>Linux</td>
+                        <td><code>$HOME/.config/Macast</code></td>
+                    </tr>
+                    <tr>
+                        <td>Windows</td>
+                        <td><code>%HOMEPATH%\AppData\Local\xfangfang\Macast</code></td>
+                    </tr>
+                    </tbody>
+                </table>
+            </figure>
+            <h2 id='language-support'>语言支持</h2>
+            <p>查看 docs/i18n.md 中的 shell 命令，
+                <el-link type="primary" href='https://github.com/xfangfang/Macast/blob/main/docs/i18n.md'>docs/i18n.md
+                </el-link>
+                ，欢迎提交 Pull Request。
+            </p>
+            <h2 id='how-to-set-personal-configurations-to-mpv'>如何为 mpv 设置个人配置</h2>
+            <p> 参考 mpv 手册了解如何设置个人配置：
+                <el-link type="primary" href='https://mpv.io/manual/stable/#files'
+                         target='_blank' class='url'>https://mpv.io/manual/stable/#files
+                </el-link>
+            </p>
+            <p> 在此处创建配置文件：</p>
+            <figure>
+                <table>
+                    <thead>
+                    <tr>
+                        <th>平台</th>
+                        <th>路径</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr>
+                        <td>MacOS</td>
+                        <td><code>~/.config/mpv/mpv.conf</code></td>
+                    </tr>
+                    <tr>
+                        <td>Linux</td>
+                        <td><code>~/.config/mpv/mpv.conf</code></td>
+                    </tr>
+                    <tr>
+                        <td>Windows</td>
+                        <td><code>%HOMEPATH%\AppData\Roaming\mpv\mpv.conf</code></td>
+                    </tr>
+                    </tbody>
+                </table>
+            </figure>
+            <p> 并在配置文件中填入一些 mpv 命令行选项，例如：</p>
+            <pre><code>fs-screen==1
+</code></pre>
+            <p><em>此选项会让 mpv 在屏幕 1 上全屏打开新视频。了解更多关于 fs-screen 的选项：
+                <el-link type="primary"
+                         href='https://mpv.io/manual/stable/#options-fs-screen' target='_blank' class='url'>
+                    https://mpv.io/manual/stable/#options-fs-screen
+                </el-link>
+            </em>
+            </p>
+            <p> 通过这种方式，您还可以修改 mpv 播放器的快捷键 —— 只需将 <strong>input.conf</strong> 放入相同的目录即可：
+                <el-link type="primary" href='https://mpv.io/manual/stable/#input-conf'
+                         target='_blank' class='url'>https://mpv.io/manual/stable/#input-conf
+                </el-link>
+            </p>
+        </el-tab-pane>
+    </el-tabs>
+
+</div>
+<div class='footer'></div>
+
+<script type="text/x-template" id="plugin">
+    <el-card class="box-card" shadow="hover">
+        <div slot="header" class="clearfix">
+            <span class="macast-plugin-name">{{ item.title }} </span>
+            <br/>
+            <div class="macast-plugin-header">
+                <span>{{ item.platform }}</span>
+                <el-tag size="small" :type="item.version_tag_type" effect="plain">{{ item.version_tag }}</el-tag>
+            </div>
+        </div>
+        <div class="macast-plugin-content">{{ item.desc }}</div>
+
+        <div class="macast-plugin-footer">
+            <div class="macast-plugin-avatar">
+                <el-avatar size="small" :src="circleUrl"></el-avatar>
+                <span class="macast-plugin-author">{{ item.author ? item.author : "Macast"  }}</span>
+            </div>
+            <el-tooltip class="item" effect="dark" :content="item.hint" placement="top">
+                <el-button
+                        :disabled="!item.available"
+                        class="macast-plugin-install"
+                        v-if="item.need_update"
+                        :type="item.version_tag_type"
+                        round
+                        v-on:click="install">
+                    {{item.button_text}}
+                </el-button>
+            </el-tooltip>
+
+        </div>
+    </el-card>
+</script>
+
+<script type="text/javascript">
+    const NotFound = {template: '<p>Page not found</p>'}
+    Vue.component('macast-plugin', {
+        template: '#plugin',
+        props: ['item', 'update'],
+        data() {
+            return {
+                circleUrl: '/assets/avatar.png',
+                loading: false
+            }
+        },
+        async mounted() {
+            this.get_github_avatar()
+        },
+        methods: {
+            async get_github_avatar() {
+                if (!this.item.author) {
+                    this.circleUrl = "/assets/icon.ico"
+                    return;
+                }
+
+                let url = `https://api.github.com/users/${this.item.author}`
+                this.$http.get(url).then(res => {
+                    this.circleUrl = res.data.avatar_url;
+                }).catch(err => {
+                    console.log(err)
+                })
+            },
+            async install(evt) {
+                this.loading = true;
+                this.$emit('refresh_plugin',
+                    {type: this.item.type, url: this.item.url}
+                )
+            },
+        }
+    })
+    new Vue({
+        el: '#app',
+        data: {
+            currentRoute: window.location.pathname,
+            backend_url: '/api',
+            activeIndex: '1',
+
+            //plugin
+            loading: true,
+            repo_plugins: [],
+            local_plugins: [],
+            plugins: [],
+            repo_url: '',
+            platform: '',
+            macast_version: 0,
+            refresh_interval_id: 0,
+
+
+            //setting
+            textarea: '',
+            interval_id: 0,
+            connecting: false,
+
+            DLNA_FriendlyName: "",
+
+            //log
+            macast_log: ''
+
+        },
+        mounted() {
+            window.addEventListener('popstate', res => {
+                if (res.state) {
+                    this.activeIndex = res.state.page;
+                } else {
+                    this.activeIndex = '1';
+                }
+            });
+            let page = this.getQueryString('page');
+            console.log(page);
+            this.switch_page(page);
+            this.load_local_plugin();
+            this.load_repo_plugin();
+            this.get_log();
+        },
+        activated() {
+
+        },
+        computed: {
+            is_json() {
+                try {
+                    let obj = JSON.parse(this.textarea);
+                    return !!(typeof obj == 'object' && obj);
+                } catch (e) {
+                    return false;
+                }
+            },
+        },
+        methods: {
+            getQueryString(name) {
+                let reg = `(^|&)${name}=([^&]*)(&|$)`
+                let r = window.location.search.substr(1).match(reg);
+                if (r != null) return unescape(r[2]);
+                return null;
+            },
+            async get_log() {
+                let url = '/api?query=log';
+                this.$http.get(url).then(res => {
+                    let logs = res.data.logs.replace(new RegExp("\n", "gm"), '<br/>')
+                    this.macast_log = logs;
+                }).catch(err => {
+                    this.$message.error('连接 Macast 出错');
+                });
+            },
+            async handleSelect(tab, event) {
+                this.switch_page(tab.name)
+            },
+            async switch_page(page_name) {
+                console.log('switch page:', page_name)
+                switch (page_name) {
+                    case '1':
+                        this.load_local_plugin();
+                        this.load_repo_plugin();
+                        this.set_history(page_name);
+                        break;
+                    case '2':
+                        this.connecting = true;
+                        let res = await this.get_settings()
+                        this.connecting = false
+                        this.set_history(page_name);
+                        break;
+                    case '3':
+                        this.set_history(page_name);
+                        this.get_log();
+                        break;
+                    case '4':
+                        this.set_history(page_name);
+                        break;
+                }
+            },
+            async set_history(page_name) {
+                this.activeIndex = page_name;
+                if (!!(window.history && history.pushState)) {
+                    history.pushState({page: page_name}, 'Macast', `?page=${page_name}`)
+                }
+            },
+            async load_repo_plugin() {
+                console.log('update plugin info')
+                let url = 'https://raw.githubusercontent.com/xfangfang/Macast-plugins/main/info.json'
+                return this.$http.get(url).then(res => {
+                    this.repo_url = res.data.repo_url
+                    this.repo_plugins = res.data.plugin_v1
+                    this.update_plugins();
+                    this.loading = false
+                    return true;
+                }).catch(err => {
+                    console.log(err);
+                    this.$message.error('连接插件仓库出错。');
+                    return false;
+                })
+            },
+            async load_local_plugin() {
+                let url = '/api?query=plugin-info'
+                return this.$http.get(url).then(res => {
+                    console.log(res.data)
+                    this.macast_version = res.data.macast_version;
+                    this.platform = res.data.platform;
+                    this.local_plugins = res.data.plugins;
+                    this.plugins = []
+                    this.$nextTick(() => {
+                        this.update_plugins();
+                    })
+                    return true;
+                }).catch(err => {
+                    console.log(err)
+                    this.$message.error('连接 Macast 出错');
+                    return false;
+                })
+            },
+            async get_settings() {
+                let url = '/api?query=launch-param'
+                return this.$http.get(url).then(res => {
+                    return res.text()
+                }).then(res => {
+                    console.log(res)
+                    res = res.replace(new RegExp("\\\\u", "gm"), '%u')
+                    this.textarea = unescape(res)
+                    return true;
+                }).catch(err => {
+                    console.log(err)
+                    this.$message.error('连接 Macast 出错');
+                    return false;
+                })
+            },
+            save() {
+                console.log(this.textarea)
+                let url = '/api'
+                let uploadData = new window.FormData()
+                uploadData.append('save-launch-param', this.textarea)
+                this.$http.post(url, uploadData).then(res => {
+                    console.log(res)
+                }).catch(err => {
+                    console.log(err)
+                    this.$message.error('连接 Macast 出错');
+                })
+                this.connecting = true;
+                this.interval_id = setInterval(
+                    async () => {
+                        let res = await this.get_settings()
+                        console.log('get_settings:', res)
+                        if (res) {
+                            clearInterval(this.interval_id)
+                            this.connecting = false;
+                            this.$notify({
+                                title: '成功',
+                                message: 'Macast 已重启',
+                                duration: 0
+                            });
+                        }
+                    }, 1000)
+            },
+            isMobile() {
+                let flag = navigator.userAgent.match(/(phone|pad|pod|iPhone|iPod|ios|iPad|Android|Mobile|BlackBerry|IEMobile|MQQBrowser|JUC|Fennec|wOSBrowser|BrowserNG|WebOS|Symbian|Windows Phone)/i)
+                return flag;
+            },
+            async refresh_plugin(data) {
+                console.log(data)
+                let uploadData = new window.FormData()
+                uploadData.append('install-plugin', JSON.stringify(data))
+                const loading = this.$loading({
+                    lock: true,
+                    text: '正在安装',
+                    spinner: 'el-icon-loading',
+                    background: 'rgba(0, 0, 0, 0.7)'
+                });
+                await this.$http.post('/api', uploadData).then(res => {
+                    console.log(res.data)
+                    if (res.data.code !== 0) {
+                        console.log(res.data.message)
+                        this.$message.error(res.data.message);
+                        loading.close();
+                        return
+                    }
+                    this.refresh_interval_id = setInterval(
+                        async () => {
+                            let res = await this.load_local_plugin()
+                            console.log('load_local_plugin:', res)
+                            if (res) {
+                                clearInterval(this.refresh_interval_id)
+                                loading.close();
+                            }
+                        }, 1000)
+                }).catch(err => {
+                    console.log(err)
+                    this.$message.error('连接 Macast 出错');
+                    loading.close();
+                })
+            },
+            update_plugins() {
+                this.plugins = [];
+                for (let p of this.local_plugins) {
+                    let data = {
+                        title: p.title,
+                        platform: p.platform, //插件适配的操作系统
+                        available: p.platform.indexOf(this.platform) !== -1, // 是否适配当前系统
+                        local_version: parseFloat(p.version), // 本地版本号
+                        repo_version: 0, // 线上版本号
+                        version_tag: `v${p.version}`,
+                        version_tag_type: 'success',
+                        author: p.author,
+                        desc: p.desc,
+                        type: p.type, //插件类型：protocol / renderer
+                        renderer: p.renderer,
+                        protocol: p.protocol,
+                        need_update: false, // 是否需要更新
+                        plugin_type: p.default ? 'default' : 'local', // 插件类型：默认插件、本地插件（有无更新）、在线插件（是否适配当前系统）
+                        hint: 'Macast 将会被重启',
+                        button_text: '更新',
+                        url: ''
+                    }
+                    this.plugins.push(data)
+                }
+                for (let p of this.repo_plugins) {
+                    let have_local = false
+                    for (let l of this.plugins) {
+                        if ((l.renderer === p.renderer && l.type === 'renderer') ||
+                            l.protocol === p.protocol && l.type === 'protocol') {
+                            // 本地插件拥有对应的在线插件
+                            have_local = true
+                            l['repo_version'] = parseFloat(p.version)
+                            l['desc'] = p.desc
+                            l['need_update'] = l.local_version < l.repo_version
+                            l['url'] = p.url
+                            if (l['need_update']) {
+                                l['version_tag'] += ` => ${p.version}`
+                                l['version_tag_type'] = 'warning'
+                            } else if (l.local_version !== l.repo_version) {
+                                l['version_tag'] = `v${l.local_version} / v${l.repo_version}`
+                            }
+                        }
+                    }
+                    if (!have_local) {
+                        // 没有对应的本地插件
+                        let data = {
+                            title: p.title,
+                            platform: p.platform, //插件适配的操作系统
+                            available: p.platform.indexOf(this.platform) !== -1, // 是否适配当前系统
+                            local_version: 0, // 本地版本号
+                            repo_version: parseFloat(p.version), // 线上版本号
+                            version_tag: `v${p.version}`,
+                            version_tag_type: '',
+                            author: p.author,
+                            desc: p.desc,
+                            type: p.type, //插件类型：protocol / renderer
+                            renderer: p.renderer,
+                            protocol: p.protocol,
+                            need_update: true,
+                            plugin_type: 'repo',
+                            hint: 'Macast 将会被重启',
+                            button_text: '安装',
+                            url: p.url
+                        }
+                        this.plugins.push(data)
+                    }
+                }
+            }
+        }
+    })
+</script>
+
+<style lang="scss">
+
+    body {
+        margin: 20px;
+        font-family: 'Noto Sans', sans-serif;
+    }
+
+    header {
+        float: none !important;
+    }
+
+    /*plugin style*/
+    .macast-plugins {
+        display: flex;
+        flex-wrap: wrap;
+    }
+
+    .macast-plugin-name {
+        font-weight: bolder;
+        font-size: x-large;
+    }
+
+    .macast-plugin-content {
+        margin: 10px;
+        height: 100px;
+    }
+
+    .macast-plugin-avatar {
+        display: flex;
+        align-items: center;
+        margin: 10px;
+    }
+
+    .macast-plugin-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 10px;
+    }
+
+    .macast-plugin-footer {
+        display: flex;
+        justify-content: space-between;
+    }
+
+    .macast-plugin-install {
+        margin: 10px;
+        margin-right: 16px;
+    }
+
+    .macast-plugin-author {
+        margin-left: 8px;
+    }
+
+    .macast-plugin-repo {
+        width: 3rem;
+        height: 3rem;
+        position: fixed;
+        bottom: 1rem;
+        right: 1rem;
+        z-index: 9999;
+    }
+
+    .item {
+        margin-bottom: 18px;
+    }
+
+    .clearfix:before,
+    .clearfix:after {
+        display: table;
+        content: "";
+    }
+
+    .clearfix:after {
+        clear: both
+    }
+
+    .box-card {
+        width: 320px;
+        margin: 10px;
+    }
+
+    /*plugin style end*/
+
+
+</style>
+
+</body>
+</html>

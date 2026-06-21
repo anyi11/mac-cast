@@ -366,6 +366,7 @@ class XMLPath(Enum):
     CONNECTION_MANAGER = BASE_PATH + '/xml/ConnectionManager.xml'
     RENDERING_CONTROL = BASE_PATH + '/xml/RenderingControl.xml'
     SETTING_PAGE = BASE_PATH + '/xml/setting.html'
+    SETTING_PAGE_ZH = BASE_PATH + '/xml/setting_zh.html'
     PROTOCOL_INFO = BASE_PATH + '/xml/SinkProtocolInfo.csv'
 
 

@@ -176,3 +176,7 @@ msgstr "检查更新"
 
 msgid "New Update {}"
 msgstr "有新版本 {}"
+
+msgid "Change Protocol to {}."
+msgstr "协议更换到 {}"
+

@@ -512,7 +512,18 @@ def gui(renderer=None, protocol=None, lang=gettext.gettext):
 
 def cli(renderer=None, protocol=None):
     if renderer is None:
-        renderer = MPVRenderer(path=Setting.mpv_default_path)
+        setting_renderer = Setting.get(SettingProperty.Macast_Renderer, 'MPV Renderer')
+        if setting_renderer == 'System Default Player':
+            from macast_renderer.custom_players import SystemPlayerRenderer
+            renderer = SystemPlayerRenderer()
+        elif setting_renderer == 'IINA Player':
+            from macast_renderer.custom_players import IINAPlayerRenderer
+            renderer = IINAPlayerRenderer()
+        elif setting_renderer == 'QuickTime Player':
+            from macast_renderer.custom_players import QuickTimePlayerRenderer
+            renderer = QuickTimePlayerRenderer()
+        else:
+            renderer = MPVRenderer(path=Setting.mpv_default_path)
     if protocol is None:
         protocol = DLNAProtocol()
     Service(renderer, protocol).run()

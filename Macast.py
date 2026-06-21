@@ -1,14 +1,24 @@
-# Copyright (c) 2021 by xfangfang. All Rights Reserved.
-
 import os
 import sys
 import gettext
 import logging
 from macast import Setting, SETTING_DIR
+
+# Configure root logger to output all logs to macast.log
+os.makedirs(SETTING_DIR, exist_ok=True)
+log_path = os.path.join(SETTING_DIR, 'macast.log')
+logging.basicConfig(
+    level=logging.DEBUG,
+    filename=log_path,
+    filemode='a',
+    format='%(asctime)s [%(name)s] [%(levelname)s] %(message)s'
+)
+
 from macast.macast import gui
 
 logger = logging.getLogger("Macast")
 logger.setLevel(logging.DEBUG)
+
 
 
 def get_base_path(path="."):
