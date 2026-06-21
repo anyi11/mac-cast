@@ -1,93 +1,52 @@
 <img align="center" src="macast_slogan.png" alt="slogan" height="auto"/>
 
-# mac-cast
+# mac-cast (Macast - anyi11 优化版)
 
 [![visitor](https://visitor-badge.glitch.me/badge?page_id=anyi11.mac-cast)](https://github.com/anyi11/mac-cast/releases/latest)
 ![stars](https://img.shields.io/badge/dynamic/json?label=github%20stars&query=stargazers_count&url=https%3A%2F%2Fapi.github.com%2Frepos%2Fanyi11%2Fmac-cast)
 [![downloads](https://img.shields.io/github/downloads/anyi11/mac-cast/total?color=blue)](https://github.com/anyi11/mac-cast/releases/latest)
-[![plugins](https://shields-staging.herokuapp.com/github/directory-file-count/anyi11/mac-cast-plugins?type=dir&label=plugins)](https://github.com/anyi11/mac-cast-plugins)
-[![pypi](https://img.shields.io/pypi/v/macast)](https://pypi.org/project/macast/)
-[![aur](https://img.shields.io/aur/version/macast-git?color=yellowgreen)](https://aur.archlinux.org/packages/macast-git/)
-[![build](https://img.shields.io/github/workflow/status/anyi11/mac-cast/Build%20Macast)](https://github.com/anyi11/mac-cast/actions/workflows/build-macast.yaml)
-[![mac](https://img.shields.io/badge/MacOS-10.14%20and%20higher-lightgrey?logo=Apple)](https://github.com/anyi11/mac-cast/releases/latest)
-[![windows](https://img.shields.io/badge/Windows-7%20and%20higher-lightgrey?logo=Windows)](https://github.com/anyi11/mac-cast/releases/latest)
-[![linux](https://img.shields.io/badge/Linux-Xorg-lightgrey?logo=Linux)](https://github.com/anyi11/mac-cast/releases/latest)
+[![mac](https://img.shields.io/badge/MacOS-13.0%20and%20higher-lightgrey?logo=Apple)](https://github.com/anyi11/mac-cast/releases/latest)
 
+`mac-cast` 是一个专为 macOS 深度优化的 **菜单栏\状态栏** 投屏接收端应用。支持手机端（Bilibili、爱优腾、网易云音乐等）通过 DLNA 协议将视频、音乐、图片投放到电脑端播放。
 
+基于原开源项目进行深度定制，带来极致丝滑、美观、无卡顿的本地化播放体验。
 
-[中文说明](README_ZH.md)
+---
 
-A menu bar application using mpv as **DLNA Media Renderer**. You can push videos, pictures or musics from your mobile phone to your computer.
+## 🌟 核心优化与改动
 
+1. **投屏配置迁移**：将「投屏名称 (Friendly Name)」设置卡片从主状态栏气泡中移除，收纳至「设置」窗口，保持主菜单极简清爽。
+2. **全新播放控制器 (ModernZ OSC)**：
+   * **超大触控按键**：界面控件尺寸增大 **25%**，高分屏操作更精准。
+   * **120Hz 高刷渲染**：支持 ProMotion 自适应刷新率，界面拖拽与消失动画如丝般顺滑。
+   * **无感进度条拖拽**：优化拖动逻辑，本地实时计算进度，松开鼠标时发送快进指令，告别拖动卡顿与画面缓冲延迟。
+   * **全中文本地化**：播放器工具提示（音量、全屏、静音、后退/快进等）完美中文化。
+3. **播放器大小映射修复**：对齐修复「小、中、大、自动、全屏」的配置项，选中「全屏」不再误触发「自动」模式。
+4. **日志自动清理**：投屏日志与下载记录在读写时自动截断，最大限制保留最新的 **50 条** 历史记录，解决大日志导致的应用卡顿问题。
 
-## Installation
+---
 
-- ### MacOS || Windows || Debian
+## 📸 软件界面截图
 
-  Download link:  [mac-cast release latest](https://github.com/anyi11/mac-cast/releases/latest)
+### 1. 状态栏主菜单与播放控制卡片
+<img align="center" width="400" src="docs/images/popover_mockup.png" alt="Popover UI" height="auto"/>
 
-- ### Package manager
+### 2. 独立设置窗口 (通用设置与播放器配置)
+<img align="center" width="450" src="docs/images/settings_mockup.png" alt="Settings UI" height="auto"/>
 
-  ```shell
-  pip install macast
-  macast-gui # or macast-cli
-  ```
+### 3. 全新中文化 ModernZ 播放器控制面板
+<img align="center" width="600" src="docs/images/player_mockup.png" alt="Player OSC UI" height="auto"/>
 
-  Please see our wiki for more information(like **aur** support): [#package-manager](https://github.com/anyi11/mac-cast/wiki/Installation#package-manager)  
-  Linux users may have problems installing using pip. Two additional libraries that I have modified need to be installed:
+---
 
-  ```shell
-  pip install git+https://github.com/anyi11/pystray.git
-  pip install git+https://github.com/anyi11/pyperclip.git
-  ```
+## 📥 下载与安装
 
-  **See [this](https://github.com/anyi11/mac-cast/wiki/Installation#linux) for Linux compatibility**
+1. **直接下载安装包**：  
+   点击前往 [mac-cast GitHub Releases](https://github.com/anyi11/mac-cast/releases/latest) 下载最新的 `mac-cast.dmg` 或 `Macast.app`，直接拖入「应用程序 (Applications)」即可运行。
 
-- ### Build from source
-
-  Please refer to: [Macast Development](docs/Development.md)
-
-
-## Usage
-
-- **For ordinary users**  
-After opening this app, a small icon will appear in the **menubar** / **taskbar** / **desktop panel**, then you can push your media files from a local DLNA client to your computer.
-
-- **For advanced users**  
-  1. By loading the [Macast-plugins](https://github.com/anyi11/mac-cast-plugins), Macast can support third-party players like IINA and PotPlayer.  
-  For more information, see: [#how-to-use-third-party-player-plug-in](https://github.com/anyi11/mac-cast/wiki/FAQ#how-to-use-third-party-player-plug-in)
-  2. You can modify the shortcut keys or configuration of the default mpv player by yourself, see: [#how-to-set-personal-configurations-to-mpv](https://github.com/anyi11/mac-cast/wiki/FAQ#how-to-set-personal-configurations-to-mpv)
-
-- **For developer**  
-You can use a few lines of code to add support for other players like IINA and PotPlayer or even add additional features, like downloading media files while playing videos.  
-Tutorials and examples are shown in: [Macast/wiki/Custom-Renderer](https://github.com/anyi11/mac-cast/wiki/Custom-Renderer).  
-Fell free to submit a pull request to [Macast-plugins](https://github.com/anyi11/mac-cast-plugins).  
-
-
-## FAQ
-If you have any questions about this application, please check: [Macast/wiki/FAQ](https://github.com/anyi11/mac-cast/wiki/FAQ).  
-If this does not solve your problem, please open a new issue to notify us, we are willing to help you solve the problem.
-
-## Screenshots
-
-You can copy the video link after the video is casted：  
-<img align="center" width="400" src="https://github.com/xfangfang/xfangfang.github.io/raw/master/assets/img/macast/copy_uri.png" alt="copy_uri" height="auto"/>
-
-Or select a third-party player plug-in  
-<img align="center" width="400" src="https://github.com/xfangfang/xfangfang.github.io/raw/master/assets/img/macast/select_renderer.png" alt="select_renderer" height="auto"/>
-
-## Relevant links
-
-[UPnP™ Device Architecture 1.1](http://upnp.org/specs/arch/UPnP-arch-DeviceArchitecture-v1.1.pdf)
-
-[UPnP™ Resources](http://upnp.org/resources/upnpresources.zip)
-
-[UPnP™ ContentDirectory:1 service](http://upnp.org/specs/av/UPnP-av-ContentDirectory-v1-Service.pdf)
-
-[UPnP™ MediaRenderer:1 device](http://upnp.org/specs/av/UPnP-av-MediaRenderer-v1-Device.pdf)
-
-[UPnP™ AVTransport:1 service](http://upnp.org/specs/av/UPnP-av-AVTransport-v1-Service.pdf)
-
-[UPnP™ RenderingControl:1 service](http://upnp.org/specs/av/UPnP-av-RenderingControl-v1-Service.pdf)
-
-[python-upnp-ssdp-example](https://github.com/ZeWaren/python-upnp-ssdp-example)
+2. **自源码构建**：
+   运行根目录下脚本：
+   ```shell
+   bash build_app.sh
+   ```
+   构建完成后即可在根目录下得到 `Macast.app`。
