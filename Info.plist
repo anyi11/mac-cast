@@ -5,9 +5,9 @@
     <key>CFBundleExecutable</key>
     <string>MacastUI</string>
     <key>CFBundleIdentifier</key>
-    <string>cn.xfangfang.MacastUI</string>
+    <string>cn.anyi11.mac-cast</string>
     <key>CFBundleName</key>
-    <string>Macast</string>
+    <string>mac-cast</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
