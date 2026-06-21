@@ -74,6 +74,16 @@ bash build_app.sh
 ```
 构建成功后，会在项目根目录下生成最新的 `Macast.app` 安装包。
 
+### 3. 自动发布 Release (CI/CD)
+项目集成了 GitHub Actions 自动化工作流。每当您在本地打上版本标签（如 `v1.2.5`）并推送时，GitHub 将自动编译、打包并发布对应的 Release 附件：
+```shell
+# 1. 本地打上版本标签
+git tag v1.2.5
+
+# 2. 推送标签到 GitHub
+git push origin v1.2.5
+```
+
 ---
 
 ## 💡 常见问题排查 (FAQ)
