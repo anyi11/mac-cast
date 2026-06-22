@@ -98,6 +98,7 @@ struct MacastSettings: Codable {
     var StartAtLogin: Int = 0
     var USN: String = UUID().uuidString
     var DownloadPath: String = ""
+    var PlayerLockSize: Int = 0
 }
 
 class SettingsManager: ObservableObject {
@@ -1083,6 +1084,10 @@ struct SettingsView: View {
                 Toggle("播放窗口置顶", isOn: Binding(
                     get: { settingsManager.settings.PlayerOntop == 1 },
                     set: { settingsManager.settings.PlayerOntop = $0 ? 1 : 0 }
+                ))
+                Toggle("固定播放器窗口大小", isOn: Binding(
+                    get: { settingsManager.settings.PlayerLockSize == 1 },
+                    set: { settingsManager.settings.PlayerLockSize = $0 ? 1 : 0 }
                 ))
                 
                 Picker("播放器大小:", selection: $settingsManager.settings.PlayerSize) {
