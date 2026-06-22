@@ -34,6 +34,10 @@ mkdir -p Macast.app/Contents/Resources/site-packages
 /usr/bin/python3 -m ensurepip --default-pip || true
 /usr/bin/python3 -m pip install --target Macast.app/Contents/Resources/site-packages -r requirements/darwin.txt
 
+echo "=== Cleaning up unneeded Python packages ==="
+rm -rf Macast.app/Contents/Resources/site-packages/{rich,pygments,typer,typer_slim,markdown_it,mdurl,shellingham,annotated_doc,setuptools}
+rm -rf Macast.app/Contents/Resources/site-packages/*.dist-info
+
 echo "=== Signing App Bundle ==="
 codesign --force --deep --sign - Macast.app
 

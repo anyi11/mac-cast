@@ -130,6 +130,13 @@ class SettingsManager: ObservableObject {
             let data = try JSONEncoder().encode(settings)
             try data.write(to: fileURL, options: .atomic)
             
+            // Update tooltip on status bar button
+            DispatchQueue.main.async {
+                if let appDelegate = NSApp.delegate as? AppDelegate {
+                    appDelegate.updateStatusItemTooltip()
+                }
+            }
+            
             // Restart helper process to apply new configurations if running
             if MacastProcessManager.shared.isRunning {
                 MacastProcessManager.shared.stop {
@@ -920,7 +927,7 @@ struct PopoverView: View {
         VStack(spacing: 16) {
             // Header
             HStack {
-                Text("Macast")
+                Text(settingsManager.settings.DLNA_FriendlyName.isEmpty ? "Macast" : settingsManager.settings.DLNA_FriendlyName)
                     .font(.system(size: 18, weight: .bold, design: .rounded))
                 Spacer()
                 
@@ -1469,6 +1476,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             button.image = NSImage(systemSymbolName: "play.tv.fill", accessibilityDescription: "Macast")
             button.action = #selector(togglePopover(_:))
             button.target = self
+            updateStatusItemTooltip()
         }
         
         popover.contentViewController = NSHostingController(rootView: PopoverView(
@@ -1487,6 +1495,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
                 popover.contentViewController?.view.window?.makeKey()
             }
+        }
+    }
+    
+    func updateStatusItemTooltip() {
+        if let button = statusItem?.button {
+            let friendlyName = SettingsManager.shared.settings.DLNA_FriendlyName
+            button.toolTip = friendlyName.isEmpty ? "Macast" : friendlyName
         }
     }
     
