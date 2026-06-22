@@ -451,6 +451,8 @@ class MPVRenderer(Renderer):
                 '--on-all-workspaces',
                 '--hwdec=yes',
                 '--save-position-on-quit=yes',
+                '--no-auto-window-resize',
+                '--keepaspect-window=no',
                 '--script-opts=osc-timetotal=yes,osc-layout=bottombar,' +
                 'osc-title=${title},osc-showwindowed=yes,' +
                 'osc-seekbarstyle=bar,osc-visibility=auto'
