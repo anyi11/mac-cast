@@ -700,9 +700,11 @@ class DLNAProtocol(Protocol):
         try:
             import cherrypy
             client_ip = cherrypy.request.remote.ip
-            logger.info(f"[CAST_EVENT] 设备 {client_ip} 投屏了: {title} | 链接: {uri}")
+            clean_title = title.replace('\r', '').replace('\n', ' ')
+            logger.info(f"[CAST_EVENT] 设备 {client_ip} 投屏了: {clean_title} | 链接: {uri}")
         except Exception:
-            logger.info(f"[CAST_EVENT] 投屏了: {title} | 链接: {uri}")
+            clean_title = title.replace('\r', '').replace('\n', ' ')
+            logger.info(f"[CAST_EVENT] 投屏了: {clean_title} | 链接: {uri}")
         self.renderer.set_media_title(title)
         self.renderer.set_media_resume()
         self.set_state('CurrentTrackTitle', title)
