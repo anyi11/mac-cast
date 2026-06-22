@@ -451,12 +451,18 @@ class MPVRenderer(Renderer):
                 '--on-all-workspaces',
                 '--hwdec=yes',
                 '--save-position-on-quit=yes',
-                '--no-auto-window-resize',
-                '--keepaspect-window=no',
                 '--script-opts=osc-timetotal=yes,osc-layout=bottombar,' +
                 'osc-title=${title},osc-showwindowed=yes,' +
                 'osc-seekbarstyle=bar,osc-visibility=auto'
             ]
+
+            lock_size = Setting.get(SettingProperty.PlayerLockSize,
+                                    default=SettingProperty.PlayerLockSize_False.value)
+            if lock_size == SettingProperty.PlayerLockSize_True.value:
+                params.append('--no-auto-window-resize')
+                params.append('--keepaspect-window=no')
+                if sys.platform == 'darwin':
+                    params.append('--vo=gpu')
 
             ontop = Setting.get(SettingProperty.PlayerOntop,
                                 default=SettingProperty.PlayerOntop_True.value)
@@ -717,12 +723,17 @@ class SettingProperty(Enum):
 
     PlayerDefaultVolume = 500
 
+    PlayerLockSize = 600
+    PlayerLockSize_False = 0
+    PlayerLockSize_True = 1
+
 
 class MPVRendererSetting(RendererSetting):
     def __init__(self):
         self.playerPositionItem = None
         self.playerSizeItem = None
         self.playerHWItem = None
+        self.playerLockSizeItem = None
         Setting.load()
         self.setting_player_size = Setting.get(SettingProperty.PlayerSize,
                                                SettingProperty.PlayerSize_Normal.value)
@@ -732,6 +743,8 @@ class MPVRendererSetting(RendererSetting):
                                              SettingProperty.PlayerHW_Enable.value)
         self.setting_player_ontop = Setting.get(SettingProperty.PlayerOntop,
                                                 SettingProperty.PlayerOntop_True.value)
+        self.setting_player_lock_size = Setting.get(SettingProperty.PlayerLockSize,
+                                                    SettingProperty.PlayerLockSize_False.value)
 
     def build_menu(self):
         self.playerPositionItem = MenuItem(_("Player Position"),
@@ -751,6 +764,11 @@ class MPVRendererSetting(RendererSetting):
                                            _("Fullscreen")
                                        ], self.on_renderer_size_clicked))
         self.playerOntopItem = MenuItem(_("Player Ontop"), self.on_renderer_ontop_clicked)
+
+        lock_size_title = _("Lock Player Size")
+        if lock_size_title == "Lock Player Size" and Setting.get_locale().lower().startswith('zh'):
+            lock_size_title = "固定播放器大小"
+        self.playerLockSizeItem = MenuItem(lock_size_title, self.on_renderer_lock_size_clicked)
 
         has_dedicated_gpu = False
         # Force dedicated GPU only works on MacOS
@@ -787,6 +805,7 @@ class MPVRendererSetting(RendererSetting):
         self.playerPositionItem.items()[self.setting_player_position].checked = True
         self.playerSizeItem.items()[self.setting_player_size].checked = True
         self.playerOntopItem.checked = True if self.setting_player_ontop == 1 else False
+        self.playerLockSizeItem.checked = True if self.setting_player_lock_size == 1 else False
 
         return [
             MenuItem(_("Player Settings"), enabled=False),
@@ -794,6 +813,7 @@ class MPVRendererSetting(RendererSetting):
             self.playerSizeItem,
             self.playerHWItem,
             self.playerOntopItem,
+            self.playerLockSizeItem,
         ]
 
     def reloadPlayer(self):

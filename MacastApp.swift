@@ -155,7 +155,7 @@ struct LogLine: Identifiable, Equatable {
     let text: String
 }
 
-struct CastedVideo: Identifiable, Equatable {
+struct CastedVideo: Identifiable, Equatable, Codable {
     let id: String
     let timestamp: String
     let device: String
@@ -177,6 +177,26 @@ class LogManager: ObservableObject {
         return paths[0].appendingPathComponent("Macast/macast.log")
     }
     
+    private var historyURL: URL {
+        let paths = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
+        return paths[0].appendingPathComponent("Macast/history.json")
+    }
+    
+    init() {
+        self.castedVideos = loadCastedVideos()
+    }
+    
+    private func loadCastedVideos() -> [CastedVideo] {
+        guard let data = try? Data(contentsOf: historyURL) else { return [] }
+        return (try? JSONDecoder().decode([CastedVideo].self, from: data)) ?? []
+    }
+    
+    private func saveCastedVideos(_ videos: [CastedVideo]) {
+        if let data = try? JSONEncoder().encode(videos) {
+            try? data.write(to: historyURL, options: .atomic)
+        }
+    }
+    
     func startMonitoring() {
         readLog()
         timer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
@@ -195,7 +215,6 @@ class LogManager: ObservableObject {
             DispatchQueue.main.async {
                 self.logLines = [LogLine(id: 0, text: "暂无运行记录。")]
                 self.rawLogText = "暂无运行记录。"
-                self.castedVideos = []
             }
             return
         }
@@ -216,7 +235,6 @@ class LogManager: ObservableObject {
                     DispatchQueue.main.async {
                         self?.logLines = [LogLine(id: 0, text: "解析记录失败。")]
                         self?.rawLogText = "解析记录失败。"
-                        self?.castedVideos = []
                     }
                     return
                 }
@@ -285,12 +303,6 @@ class LogManager: ObservableObject {
                     }
                 }
                 
-                // Automatically truncate the log file on disk if it exceeds 50 lines
-                if allLines.count > 50 {
-                    let last50LinesText = Array(allLines.suffix(50)).joined(separator: "\n")
-                    try? last50LinesText.write(to: url, atomically: true, encoding: .utf8)
-                }
-
                 let linesToKeep = 50
                 let startIdx = max(0, filtered.count - linesToKeep)
                 let finalLines = Array(filtered[startIdx..<filtered.count])
@@ -302,21 +314,35 @@ class LogManager: ObservableObject {
                 }
                 
                 let rawText = finalLines.joined(separator: "\n")
-                var finalVideos = Array(videos.reversed())
-                if finalVideos.count > 50 {
-                    finalVideos = Array(finalVideos.prefix(50))
+                
+                // Load existing videos from file and merge them with newly parsed ones
+                var mergedVideos = self?.loadCastedVideos() ?? []
+                for video in videos {
+                    if !mergedVideos.contains(where: { $0.id == video.id }) {
+                        mergedVideos.append(video)
+                    }
                 }
+                
+                // Sort by timestamp (newest first)
+                mergedVideos.sort(by: { $0.timestamp > $1.timestamp })
+                
+                // Keep only the latest 50 videos
+                if mergedVideos.count > 50 {
+                    mergedVideos = Array(mergedVideos.prefix(50))
+                }
+                
+                // Save updated list
+                self?.saveCastedVideos(mergedVideos)
                 
                 DispatchQueue.main.async {
                     self?.logLines = structuredLines.isEmpty ? [LogLine(id: 0, text: "暂无投屏记录。")] : structuredLines
                     self?.rawLogText = rawText.isEmpty ? "暂无投屏记录。" : rawText
-                    self?.castedVideos = finalVideos
+                    self?.castedVideos = mergedVideos
                 }
             } catch {
                 DispatchQueue.main.async {
                     self?.logLines = [LogLine(id: 0, text: "读取记录失败: \(error.localizedDescription)")]
                     self?.rawLogText = "读取记录失败: \(error.localizedDescription)"
-                    self?.castedVideos = []
                 }
             }
         }
@@ -1269,6 +1295,8 @@ struct CastingLogsPaneView: View {
                     let paths = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
                     let logURL = paths[0].appendingPathComponent("Macast/macast.log")
                     try? "".write(to: logURL, atomically: true, encoding: .utf8)
+                    let historyURL = paths[0].appendingPathComponent("Macast/history.json")
+                    try? FileManager.default.removeItem(at: historyURL)
                     logManager.logLines = []
                     logManager.rawLogText = ""
                     logManager.castedVideos = []
