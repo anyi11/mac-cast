@@ -1378,10 +1378,8 @@ struct LogView: View {
                     }
                     .tag(1)
             }
-            .padding(.top, 10)
         }
         .frame(minWidth: 500, maxWidth: .infinity, minHeight: 380, maxHeight: .infinity)
-        .background(VisualEffectView(material: .hudWindow, blendingMode: .behindWindow))
         .onAppear {
             logManager.startMonitoring()
         }
