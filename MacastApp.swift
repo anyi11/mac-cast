@@ -1365,55 +1365,20 @@ struct LogView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Tab Selector Header
-            HStack(spacing: 20) {
-                Button(action: { selectedTab = 0 }) {
-                    VStack(spacing: 4) {
-                        Text("投屏日志")
-                            .font(.system(size: 13, weight: selectedTab == 0 ? .bold : .regular))
-                            .foregroundColor(selectedTab == 0 ? .primary : .secondary)
-                        Rectangle()
-                            .fill(selectedTab == 0 ? Color.blue : Color.clear)
-                            .frame(height: 2)
-                    }
-                }
-                .buttonStyle(PlainButtonStyle())
-                
-                Button(action: { selectedTab = 1 }) {
-                    VStack(spacing: 4) {
-                        Text("视频下载")
-                            .font(.system(size: 13, weight: selectedTab == 1 ? .bold : .regular))
-                            .foregroundColor(selectedTab == 1 ? .primary : .secondary)
-                        Rectangle()
-                            .fill(selectedTab == 1 ? Color.blue : Color.clear)
-                            .frame(height: 2)
-                    }
-                }
-                .buttonStyle(PlainButtonStyle())
-                
-                Spacer()
-                
-                if selectedTab == 0 {
-                    Text("实时更新")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundColor(.green)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.green.opacity(0.15))
-                        .cornerRadius(6)
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 14)
-            .padding(.bottom, 8)
-            
-            Divider()
-            
-            if selectedTab == 0 {
+            TabView(selection: $selectedTab) {
                 CastingLogsPaneView()
-            } else {
+                    .tabItem {
+                        Label("投屏日志", systemImage: "list.bullet.rectangle")
+                    }
+                    .tag(0)
+                
                 VideoDownloaderPaneView()
+                    .tabItem {
+                        Label("视频下载", systemImage: "arrow.down.circle")
+                    }
+                    .tag(1)
             }
+            .padding(.top, 10)
         }
         .frame(minWidth: 500, maxWidth: .infinity, minHeight: 380, maxHeight: .infinity)
         .background(VisualEffectView(material: .hudWindow, blendingMode: .behindWindow))
@@ -1465,6 +1430,22 @@ struct CastingLogsPaneView: View {
                         .font(.system(size: 11))
                 }
                 .buttonStyle(.bordered)
+                
+                Spacer()
+                
+                // Realtime Update indicator
+                HStack(spacing: 3) {
+                    Circle()
+                        .fill(Color(red: 51/255.0, green: 199/255.0, blue: 89/255.0))
+                        .frame(width: 5, height: 5)
+                    Text("实时更新")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(Color(red: 51/255.0, green: 199/255.0, blue: 89/255.0))
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(Color(red: 51/255.0, green: 199/255.0, blue: 89/255.0).opacity(0.12))
+                .cornerRadius(6)
                 
                 Spacer()
                 
@@ -1752,16 +1733,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func openLogs() {
         if logWindow == nil {
             let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 580, height: 420),
-                styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
+                contentRect: NSRect(x: 0, y: 0, width: 580, height: 450),
+                styleMask: [.titled, .closable, .resizable],
                 backing: .buffered, defer: false)
             window.center()
             window.title = "Macast 投屏历史"
-            window.titlebarAppearsTransparent = true
-            window.titleVisibility = .hidden
-            window.isMovableByWindowBackground = true
-            window.backgroundColor = .clear
-            window.isOpaque = false
             window.contentViewController = NSHostingController(rootView: LogView())
             window.isReleasedWhenClosed = false
             logWindow = window
