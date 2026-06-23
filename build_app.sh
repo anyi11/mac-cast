@@ -37,6 +37,13 @@ mkdir -p Macast.app/Contents/Resources/site-packages
 echo "=== Cleaning up unneeded Python packages ==="
 rm -rf Macast.app/Contents/Resources/site-packages/{rich,pygments,typer,typer_slim,markdown_it,mdurl,shellingham,annotated_doc,setuptools}
 rm -rf Macast.app/Contents/Resources/site-packages/*.dist-info
+rm -f Macast.app/Contents/Resources/site-packages/lxml/objectify*.so
+rm -rf Macast.app/Contents/Resources/site-packages/lxml/{html,includes,isoschematron}
+find Macast.app/Contents/Resources/site-packages/lxml -name "*.pyx" -delete
+find Macast.app/Contents/Resources/site-packages/lxml -name "*.pxi" -delete
+find Macast.app/Contents/Resources/site-packages/lxml -name "*.h" -delete
+rm -rf Macast.app/Contents/Resources/site-packages/cherrypy/test
+rm -rf Macast.app/Contents/Resources/site-packages/cheroot/test
 
 echo "=== Signing App Bundle ==="
 codesign --force --deep --sign - Macast.app

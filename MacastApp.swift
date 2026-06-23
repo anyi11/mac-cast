@@ -1035,110 +1035,152 @@ struct PopoverView: View {
 // MARK: - Settings View
 struct SettingsView: View {
     @ObservedObject var settingsManager = SettingsManager.shared
+    @State private var selectedTab = 0
     
     var body: some View {
-        Form {
-            Section(header: Text("通用设置").font(.headline)) {
-                HStack {
-                    Text("投屏名称:")
-                    TextField("例如: 客厅的Mac", text: $settingsManager.settings.DLNA_FriendlyName)
+        VStack(spacing: 0) {
+            TabView(selection: $selectedTab) {
+                // Tab 1: General Settings
+                Form {
+                    HStack(alignment: .center, spacing: 12) {
+                        Text("投屏名称:")
+                            .font(.system(size: 13, weight: .medium))
+                            .frame(width: 80, alignment: .trailing)
+                        TextField("例如: 客厅的Mac", text: $settingsManager.settings.DLNA_FriendlyName)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                    }
+                    .padding(.top, 8)
+                    
+                    HStack(alignment: .center, spacing: 12) {
+                        Text("服务端口:")
+                            .font(.system(size: 13, weight: .medium))
+                            .frame(width: 80, alignment: .trailing)
+                        TextField("默认 1068", value: $settingsManager.settings.ApplicationPort, formatter: NumberFormatter())
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .frame(width: 100)
+                        Spacer()
+                    }
+                    
+                    Divider()
+                        .padding(.vertical, 8)
+                    
+                    VStack(alignment: .leading, spacing: 10) {
+                        Toggle("开机自启", isOn: Binding(
+                            get: { settingsManager.settings.StartAtLogin == 1 },
+                            set: { settingsManager.settings.StartAtLogin = $0 ? 1 : 0 }
+                        ))
+                        Toggle("自动检查更新", isOn: Binding(
+                            get: { settingsManager.settings.CheckUpdate == 1 },
+                            set: { settingsManager.settings.CheckUpdate = $0 ? 1 : 0 }
+                        ))
+                    }
+                    .padding(.leading, 96)
                 }
+                .padding(20)
+                .tabItem {
+                    Label("通用", systemImage: "gearshape")
+                }
+                .tag(0)
                 
-                Toggle("开机自启", isOn: Binding(
-                    get: { settingsManager.settings.StartAtLogin == 1 },
-                    set: { settingsManager.settings.StartAtLogin = $0 ? 1 : 0 }
-                ))
-                Toggle("自动检查更新", isOn: Binding(
-                    get: { settingsManager.settings.CheckUpdate == 1 },
-                    set: { settingsManager.settings.CheckUpdate = $0 ? 1 : 0 }
-                ))
-                
-                HStack {
-                    Text("服务端口:")
-                    TextField("默认 1068", value: $settingsManager.settings.ApplicationPort, formatter: NumberFormatter())
-                        .frame(width: 80)
-                }
-            }
-            
-            Divider()
-                .padding(.vertical, 4)
-            
-            Section(header: Text("投屏播放器选择").font(.headline)) {
-                Picker("选择播放器:", selection: $settingsManager.settings.Macast_Renderer) {
-                    Text("内置 MPV 播放器 (默认)").tag("MPV Renderer")
-                    Text("系统默认关联播放器 (open)").tag("System Default Player")
-                    Text("IINA 播放器").tag("IINA Player")
-                    Text("QuickTime Player").tag("QuickTime Player")
-                }
-                .pickerStyle(MenuPickerStyle())
-            }
-            
-            Divider()
-                .padding(.vertical, 4)
-            
-            Section(header: Text("播放器选项 (仅适用于内置 MPV)").font(.headline)) {
-                Toggle("硬件解码", isOn: Binding(
-                    get: { settingsManager.settings.PlayerHW == 1 },
-                    set: { settingsManager.settings.PlayerHW = $0 ? 1 : 0 }
-                ))
-                Toggle("播放窗口置顶", isOn: Binding(
-                    get: { settingsManager.settings.PlayerOntop == 1 },
-                    set: { settingsManager.settings.PlayerOntop = $0 ? 1 : 0 }
-                ))
-                Toggle("固定播放器窗口大小", isOn: Binding(
-                    get: { settingsManager.settings.PlayerLockSize == 1 },
-                    set: { settingsManager.settings.PlayerLockSize = $0 ? 1 : 0 }
-                ))
-                
-                Picker("播放器大小:", selection: $settingsManager.settings.PlayerSize) {
-                    Text("小").tag(0)
-                    Text("中").tag(1)
-                    Text("大").tag(2)
-                    Text("自动").tag(3)
-                    Text("全屏").tag(4)
-                }
-                .pickerStyle(SegmentedPickerStyle())
-                
-                Picker("播放器位置:", selection: $settingsManager.settings.PlayerPosition) {
-                    Text("左上").tag(0)
-                    Text("左下").tag(1)
-                    Text("右上").tag(2)
-                    Text("右下").tag(3)
-                    Text("中央").tag(4)
-                }
-            }
-            .disabled(settingsManager.settings.Macast_Renderer != "MPV Renderer")
-            .opacity(settingsManager.settings.Macast_Renderer == "MPV Renderer" ? 1.0 : 0.5)
-            
-            Divider()
-                .padding(.vertical, 4)
-            
-            Section(header: Text("下载设置").font(.headline)) {
-                HStack {
-                    Text("保存路径:")
-                    Text(settingsManager.settings.DownloadPath.isEmpty ? "Downloads (默认)" : settingsManager.settings.DownloadPath)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    Spacer()
-                    Button("选择...") {
-                        let openPanel = NSOpenPanel()
-                        openPanel.canChooseFiles = false
-                        openPanel.canChooseDirectories = true
-                        openPanel.allowsMultipleSelection = false
-                        openPanel.prompt = "选择"
+                // Tab 2: Player Settings
+                Form {
+                    Picker("选择播放器:", selection: $settingsManager.settings.Macast_Renderer) {
+                        Text("内置 MPV 播放器 (默认)").tag("MPV Renderer")
+                        Text("系统默认关联播放器 (open)").tag("System Default Player")
+                        Text("IINA 播放器").tag("IINA Player")
+                        Text("QuickTime Player").tag("QuickTime Player")
+                    }
+                    .pickerStyle(MenuPickerStyle())
+                    .padding(.top, 4)
+                    
+                    if settingsManager.settings.Macast_Renderer == "MPV Renderer" {
+                        Divider()
+                            .padding(.vertical, 8)
                         
-                        if openPanel.runModal() == .OK {
-                            if let url = openPanel.url {
-                                settingsManager.settings.DownloadPath = url.path
-                                settingsManager.save()
-                            }
+                        VStack(alignment: .leading, spacing: 10) {
+                            Toggle("硬件解码", isOn: Binding(
+                                get: { settingsManager.settings.PlayerHW == 1 },
+                                set: { settingsManager.settings.PlayerHW = $0 ? 1 : 0 }
+                            ))
+                            Toggle("播放窗口置顶", isOn: Binding(
+                                get: { settingsManager.settings.PlayerOntop == 1 },
+                                set: { settingsManager.settings.PlayerOntop = $0 ? 1 : 0 }
+                            ))
+                            Toggle("固定播放器窗口大小", isOn: Binding(
+                                get: { settingsManager.settings.PlayerLockSize == 1 },
+                                set: { settingsManager.settings.PlayerLockSize = $0 ? 1 : 0 }
+                            ))
+                        }
+                        .padding(.leading, 20)
+                        
+                        Divider()
+                            .padding(.vertical, 8)
+                        
+                        Picker("播放器大小:", selection: $settingsManager.settings.PlayerSize) {
+                            Text("小").tag(0)
+                            Text("中").tag(1)
+                            Text("大").tag(2)
+                            Text("自动").tag(3)
+                            Text("全屏").tag(4)
+                        }
+                        .pickerStyle(SegmentedPickerStyle())
+                        
+                        Picker("播放器位置:", selection: $settingsManager.settings.PlayerPosition) {
+                            Text("左上").tag(0)
+                            Text("左下").tag(1)
+                            Text("右上").tag(2)
+                            Text("右下").tag(3)
+                            Text("中央").tag(4)
                         }
                     }
                 }
+                .padding(20)
+                .tabItem {
+                    Label("播放器", systemImage: "play.tv")
+                }
+                .tag(1)
+                
+                // Tab 3: Downloads Settings
+                Form {
+                    HStack(alignment: .top, spacing: 12) {
+                        Text("保存路径:")
+                            .font(.system(size: 13, weight: .medium))
+                            .frame(width: 80, alignment: .trailing)
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text(settingsManager.settings.DownloadPath.isEmpty ? "Downloads (默认)" : settingsManager.settings.DownloadPath)
+                                .foregroundColor(.secondary)
+                                .font(.system(size: 11, design: .monospaced))
+                                .lineLimit(2)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            
+                            Button("选择保存目录...") {
+                                let openPanel = NSOpenPanel()
+                                openPanel.canChooseFiles = false
+                                openPanel.canChooseDirectories = true
+                                openPanel.allowsMultipleSelection = false
+                                openPanel.prompt = "选择"
+                                
+                                if openPanel.runModal() == .OK {
+                                    if let url = openPanel.url {
+                                        settingsManager.settings.DownloadPath = url.path
+                                        settingsManager.save()
+                                    }
+                                }
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    }
+                    .padding(.top, 8)
+                }
+                .padding(20)
+                .tabItem {
+                    Label("下载", systemImage: "square.and.arrow.down")
+                }
+                .tag(2)
             }
+            .frame(width: 480, height: 310)
             
-            Spacer()
+            Divider()
             
             HStack {
                 Spacer()
@@ -1151,9 +1193,11 @@ struct SettingsView: View {
                 .keyboardShortcut(.defaultAction)
                 .buttonStyle(.borderedProminent)
             }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 16)
+            .padding(.top, 12)
         }
-        .padding(20)
-        .frame(width: 450, height: 500)
+        .frame(width: 480, height: 380)
     }
 }
 
@@ -1247,18 +1291,59 @@ struct LogView: View {
 struct CastingLogsPaneView: View {
     @ObservedObject var logManager = LogManager.shared
     
+    private func extractURL(from text: String) -> String? {
+        if let range = text.range(of: "链接: ") {
+            return String(text[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+        } else if let range = text.range(of: "链接:") {
+            return String(text[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+        } else if let range = text.range(of: "http://") {
+            let start = range.lowerBound
+            return String(text[start...]).trimmingCharacters(in: .whitespacesAndNewlines)
+        } else if let range = text.range(of: "https://") {
+            let start = range.lowerBound
+            return String(text[start...]).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return nil
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 6) {
                         ForEach(logManager.logLines) { line in
-                            Text(line.text)
-                                .font(.system(size: 11, design: .monospaced))
-                                .foregroundColor(.primary.opacity(0.85))
-                                .multilineTextAlignment(.leading)
-                                .lineLimit(nil)
-                                .padding(.vertical, 2)
+                            HStack(alignment: .top) {
+                                Text(line.text)
+                                    .font(.system(size: 11, design: .monospaced))
+                                    .foregroundColor(.primary.opacity(0.85))
+                                    .multilineTextAlignment(.leading)
+                                    .lineLimit(nil)
+                                
+                                Spacer(minLength: 8)
+                                
+                                if let url = extractURL(from: line.text) {
+                                    Button(action: {
+                                        let pasteboard = NSPasteboard.general
+                                        pasteboard.declareTypes([.string], owner: nil)
+                                        pasteboard.setString(url, forType: .string)
+                                    }) {
+                                        HStack(spacing: 2) {
+                                            Image(systemName: "doc.on.doc")
+                                                .font(.system(size: 10))
+                                            Text("复制链接")
+                                                .font(.system(size: 9))
+                                        }
+                                        .foregroundColor(.blue)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(Color.blue.opacity(0.1))
+                                        .cornerRadius(4)
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+                                    .help("复制视频链接")
+                                }
+                            }
+                            .padding(.vertical, 2)
                         }
                         
                         Color.clear
@@ -1416,6 +1501,25 @@ struct VideoDownloadRowView: View {
             
             Divider()
             
+            // Copy Link Button
+            Button(action: {
+                let pasteboard = NSPasteboard.general
+                pasteboard.declareTypes([.string], owner: nil)
+                pasteboard.setString(video.url, forType: .string)
+            }) {
+                VStack(spacing: 4) {
+                    Image(systemName: "doc.on.doc")
+                        .font(.system(size: 16))
+                    Text("复制")
+                        .font(.system(size: 9, weight: .semibold))
+                }
+                .frame(width: 50, height: 45)
+                .background(Color.primary.opacity(0.05))
+                .foregroundColor(.primary.opacity(0.8))
+                .cornerRadius(6)
+            }
+            .buttonStyle(PlainButtonStyle())
+            
             // Download Button
             Button(action: {
                 if case .completed(let localURL) = item.status {
@@ -1541,7 +1645,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func openSettings() {
         if settingsWindow == nil {
             let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 450, height: 500),
+                contentRect: NSRect(x: 0, y: 0, width: 480, height: 380),
                 styleMask: [.titled, .closable],
                 backing: .buffered, defer: false)
             window.center()

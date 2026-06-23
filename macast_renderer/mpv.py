@@ -77,8 +77,12 @@ class MPVRenderer(Renderer):
         self.history_index = -1
         self.navigating = False
         self.command_lock = threading.Lock()
+        self.start_event = threading.Event()
+        self.ipc_connected_event = threading.Event()
         self.renderer_setting = MPVRendererSetting()
         self.mpv_version_newer = True
+        self.stop_timer = None
+        self.stop_timer_lock = threading.Lock()
         try:
             out = subprocess.check_output([self.path, '--version'], stderr=subprocess.STDOUT)
             out_str = out.decode('utf-8', errors='ignore')
@@ -98,14 +102,22 @@ class MPVRenderer(Renderer):
 
     def set_media_stop(self):
         self.send_command(['stop'])
+        with self.stop_timer_lock:
+            if self.stop_timer is not None:
+                self.stop_timer.cancel()
+            
+            def deferred_quit():
+                logger.info("No new cast request received after Stop. Quitting player...")
+                self.send_command(['quit'])
+            
+            self.stop_timer = threading.Timer(1.5, deferred_quit)
+            self.stop_timer.start()
 
     def set_media_pause(self):
         self.send_command(['set_property', 'pause', True])
-        self.set_media_text('Pause')
 
     def set_media_resume(self):
         self.send_command(['set_property', 'pause', False])
-        self.set_media_text('Resume')
 
     def set_media_volume(self, data):
         """ data : int, range from 0 to 100
@@ -122,6 +134,16 @@ class MPVRenderer(Renderer):
     def set_media_url(self, url, start="0"):
         """ data : string
         """
+        with self.stop_timer_lock:
+            if self.stop_timer is not None:
+                self.stop_timer.cancel()
+                self.stop_timer = None
+
+        if not self.ipc_connected_event.is_set():
+            logger.info("mpv not connected. Ensuring it starts...")
+            self.start_event.set()
+            self.ipc_connected_event.wait(timeout=3.0)
+
         if not self.navigating:
             if self.history_index >= 0 and self.history_index < len(self.history) - 1:
                 self.history = self.history[:self.history_index + 1]
@@ -384,6 +406,9 @@ class MPVRenderer(Renderer):
             return
         self.ipc_running = True
         while self.ipc_running and self.running and self.mpv_thread.is_alive():
+            self.start_event.wait()
+            if not self.running:
+                break
             try:
                 time.sleep(0.5)
                 logger.error("mpv ipc socket start connect: {}".format(self.mpv_sock))
@@ -402,6 +427,7 @@ class MPVRenderer(Renderer):
                 cherrypy.engine.publish('renderer_start')
                 self.ipc_once_connected = True
                 self.set_observe()
+                self.ipc_connected_event.set()
             except Exception as e:
                 logger.error("mpv ipc socket reconnecting: {}".format(str(e)))
                 continue
@@ -432,6 +458,7 @@ class MPVRenderer(Renderer):
                 finally:
                     res = b''
             self.ipc_sock.close()
+            self.ipc_connected_event.clear()
             logger.error("mpv ipc stopped")
 
     def start_mpv(self):
@@ -440,6 +467,10 @@ class MPVRenderer(Renderer):
         self.ensure_uosc_fonts()
         error_time = 3
         while self.running and error_time > 0:
+            self.start_event.wait()
+            if not self.running:
+                break
+            self.ipc_once_connected = False
             self.set_state_speed('1')
             # mpv default params
             params = [
@@ -453,7 +484,8 @@ class MPVRenderer(Renderer):
                 '--save-position-on-quit=yes',
                 '--script-opts=osc-timetotal=yes,osc-layout=bottombar,' +
                 'osc-title=${title},osc-showwindowed=yes,' +
-                'osc-seekbarstyle=bar,osc-visibility=auto'
+                'osc-seekbarstyle=bar,osc-visibility=auto',
+                '--osd-playing-msg='
             ]
 
             lock_size = Setting.get(SettingProperty.PlayerLockSize,
@@ -461,8 +493,7 @@ class MPVRenderer(Renderer):
             if lock_size == SettingProperty.PlayerLockSize_True.value:
                 params.append('--no-auto-window-resize')
                 params.append('--keepaspect-window=no')
-                if sys.platform == 'darwin':
-                    params.append('--vo=gpu')
+                params.append('--force-window=yes')
 
             ontop = Setting.get(SettingProperty.PlayerOntop,
                                 default=SettingProperty.PlayerOntop_True.value)
@@ -626,6 +657,8 @@ class MPVRenderer(Renderer):
             except Exception as e:
                 logger.error(e)
             logger.info("mpv stopped")
+            if self.ipc_once_connected:
+                self.start_event.clear()
             if self.running and not self.ipc_once_connected:
                 # There should be a problem with the MPV startup parameters
                 time.sleep(1)
@@ -652,6 +685,10 @@ class MPVRenderer(Renderer):
         """
         super(MPVRenderer, self).stop()
         logger.info("stoping mpv and mpv ipc")
+        with self.stop_timer_lock:
+            if self.stop_timer is not None:
+                self.stop_timer.cancel()
+                self.stop_timer = None
         # stop mpv
         self.send_command(['quit'])
         if self.proc is not None:

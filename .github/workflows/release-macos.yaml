@@ -22,7 +22,7 @@ jobs:
 
       - name: Package App Bundle
         run: |
-          zip -r mac-cast-macOS.zip Macast.app
+          zip -q -r -9 mac-cast-macOS.zip Macast.app
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1

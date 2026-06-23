@@ -4080,9 +4080,9 @@ tick = function()
             if display_aspect == 0 then return end
             local display_h = 360
             local display_w = display_h * display_aspect
-            -- logo is rendered at 2^(6-1) = 32 times resolution with size 1800x1800
-            local icon_x, icon_y = (display_w - 1800 / 32) / 2, 140
-            local line_prefix = ("{\\rDefault\\an7\\1a&H00&\\bord0\\shad0\\pos(%f,%f)}"):format(icon_x, icon_y)
+            -- Place in the top-left corner and scale down
+            local icon_x, icon_y = 10, 10
+            local line_prefix = ("{\\rDefault\\an7\\1a&H00&\\bord0\\shad0\\fscx35\\fscy35\\pos(%f,%f)}"):format(icon_x, icon_y)
 
             local ass = assdraw.ass_new()
             -- mpv logo
@@ -4100,9 +4100,9 @@ tick = function()
             end
 
             ass:new_event()
-            ass:pos(display_w / 2, icon_y + 65)
-            ass:an(8)
-            ass:append("{\\fs24\\1c&HFFFFFF&}" .. locale.idle)
+            ass:pos(36, 20)
+            ass:an(4)
+            ass:append("{\\fs11\\1c&HFFFFFF&}" .. locale.idle)
             set_osd(state.logo_osd, display_w, display_h, ass.text, -1000)
         end
 
