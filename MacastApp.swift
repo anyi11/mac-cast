@@ -811,7 +811,7 @@ struct PlaybackControlCardView: View {
             // Title
             HStack {
                 Image(systemName: "play.tv")
-                    .foregroundColor(.blue)
+                    .foregroundColor(Color(red: 0.0, green: 0.68, blue: 0.93))
                     .font(.system(size: 14, weight: .bold))
                 
                 Text(playbackManager.currentTitle)
@@ -835,7 +835,7 @@ struct PlaybackControlCardView: View {
                         }
                     }
                 })
-                .accentColor(.blue)
+                .accentColor(Color(red: 0.0, green: 0.68, blue: 0.93))
                 
                 HStack {
                     Text(formatTime(localTime))
@@ -875,7 +875,7 @@ struct PlaybackControlCardView: View {
                 }) {
                     Image(systemName: playbackManager.isPlaying ? "pause.circle.fill" : "play.circle.fill")
                         .font(.system(size: 32))
-                        .foregroundColor(.blue)
+                        .foregroundColor(Color(red: 0.0, green: 0.68, blue: 0.93))
                 }
                 .buttonStyle(PlainButtonStyle())
                 
@@ -961,7 +961,7 @@ struct PopoverView: View {
                 // Status indicator
                 HStack(spacing: 6) {
                     Circle()
-                        .fill(processManager.isRunning ? Color.green : Color.red)
+                        .fill(processManager.isRunning ? Color(red: 51/255.0, green: 199/255.0, blue: 89/255.0) : Color(red: 235/255.0, green: 87/255.0, blue: 87/255.0))
                         .frame(width: 8, height: 8)
                     Text(processManager.isRunning ? "正在运行" : "已停止")
                         .font(.system(size: 12, weight: .medium))
@@ -991,7 +991,16 @@ struct PopoverView: View {
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
-                .background(processManager.isRunning ? Color.red : Color.blue)
+                .background(
+                    LinearGradient(
+                        gradient: Gradient(colors: processManager.isRunning ?
+                            [Color(red: 240/255.0, green: 97/255.0, blue: 97/255.0), Color(red: 224/255.0, green: 72/255.0, blue: 72/255.0)] :
+                            [Color(red: 0/255.0, green: 186/255.0, blue: 255/255.0), Color(red: 0/255.0, green: 148/255.0, blue: 224/255.0)]
+                        ),
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
                 .cornerRadius(8)
             }
             .buttonStyle(PlainButtonStyle())
@@ -1220,6 +1229,135 @@ struct VisualEffectView: NSViewRepresentable {
     }
 }
 
+struct ParsedLogEntry: Identifiable {
+    let id: Int
+    let timestamp: String
+    let device: String
+    let title: String
+    let url: String?
+}
+
+func parseLogLine(_ line: LogLine) -> ParsedLogEntry {
+    let text = line.text
+    var time = ""
+    
+    if text.hasPrefix("[") && text.contains("]") {
+        if let closeBracketIdx = text.firstIndex(of: "]") {
+            let start = text.index(after: text.startIndex)
+            time = String(text[start..<closeBracketIdx])
+        }
+    }
+    
+    let content = text.contains("]") ? String(text[text.index(after: text.firstIndex(of: "]")!)...]).trimmingCharacters(in: .whitespaces) : text
+    
+    if content.contains("设备 ") && content.contains(" 投屏了:") {
+        var device = "未知设备"
+        var title = "无标题"
+        var urlStr: String? = nil
+        
+        if let devStart = content.range(of: "设备 "),
+           let devEnd = content.range(of: " 投屏了:") {
+            device = String(content[devStart.upperBound..<devEnd.lowerBound]).trimmingCharacters(in: .whitespaces)
+        }
+        
+        if let titleStart = content.range(of: "投屏了:") {
+            if let titleEnd = content.range(of: " | 链接:") {
+                title = String(content[titleStart.upperBound..<titleEnd.lowerBound]).trimmingCharacters(in: .whitespaces)
+                let rawUrl = String(content[titleEnd.upperBound...])
+                urlStr = rawUrl.replacingOccurrences(of: " 链接: ", with: "")
+                    .replacingOccurrences(of: "链接:", with: "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            } else {
+                title = String(content[titleStart.upperBound...]).trimmingCharacters(in: .whitespaces)
+            }
+        }
+        
+        return ParsedLogEntry(id: line.id, timestamp: time, device: device, title: title, url: urlStr)
+    } else {
+        return ParsedLogEntry(id: line.id, timestamp: time, device: "", title: content, url: nil)
+    }
+}
+
+struct LogRowView: View {
+    let entry: ParsedLogEntry
+    
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            // Time Badge
+            if !entry.timestamp.isEmpty {
+                Text(entry.timestamp)
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(Color.primary.opacity(0.06))
+                    .cornerRadius(6)
+            }
+            
+            // Icon & Info
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    if !entry.device.isEmpty {
+                        Image(systemName: "play.tv")
+                            .font(.system(size: 9))
+                            .foregroundColor(Color(red: 0.0, green: 0.68, blue: 0.93))
+                        Text(entry.device)
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(Color(red: 0.0, green: 0.68, blue: 0.93))
+                    } else {
+                        Image(systemName: "info.circle")
+                            .font(.system(size: 9))
+                            .foregroundColor(.secondary)
+                        Text("系统")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                Text(entry.title)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.primary.opacity(0.9))
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            
+            Spacer(minLength: 8)
+            
+            // Action Button
+            if let url = entry.url, !url.isEmpty {
+                Button(action: {
+                    let pasteboard = NSPasteboard.general
+                    pasteboard.declareTypes([.string], owner: nil)
+                    pasteboard.setString(url, forType: .string)
+                }) {
+                    HStack(spacing: 3) {
+                        Image(systemName: "doc.on.doc")
+                            .font(.system(size: 9))
+                        Text("复制链接")
+                            .font(.system(size: 9, weight: .medium))
+                    }
+                    .foregroundColor(Color(red: 0.0, green: 0.68, blue: 0.93))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color(red: 0.0, green: 0.68, blue: 0.93).opacity(0.12))
+                    .cornerRadius(6)
+                }
+                .buttonStyle(PlainButtonStyle())
+                .help("复制视频链接")
+            }
+        }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 12)
+        .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
+        .cornerRadius(8)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.primary.opacity(0.05), lineWidth: 1)
+        )
+    }
+}
+
 // MARK: - Log View
 struct LogView: View {
     @ObservedObject var logManager = LogManager.shared
@@ -1291,73 +1429,22 @@ struct LogView: View {
 struct CastingLogsPaneView: View {
     @ObservedObject var logManager = LogManager.shared
     
-    private func extractURL(from text: String) -> String? {
-        if let range = text.range(of: "链接: ") {
-            return String(text[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
-        } else if let range = text.range(of: "链接:") {
-            return String(text[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
-        } else if let range = text.range(of: "http://") {
-            let start = range.lowerBound
-            return String(text[start...]).trimmingCharacters(in: .whitespacesAndNewlines)
-        } else if let range = text.range(of: "https://") {
-            let start = range.lowerBound
-            return String(text[start...]).trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        return nil
-    }
-    
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 6) {
+                    LazyVStack(alignment: .leading, spacing: 8) {
                         ForEach(logManager.logLines) { line in
-                            HStack(alignment: .top) {
-                                Text(line.text)
-                                    .font(.system(size: 11, design: .monospaced))
-                                    .foregroundColor(.primary.opacity(0.85))
-                                    .multilineTextAlignment(.leading)
-                                    .lineLimit(nil)
-                                
-                                Spacer(minLength: 8)
-                                
-                                if let url = extractURL(from: line.text) {
-                                    Button(action: {
-                                        let pasteboard = NSPasteboard.general
-                                        pasteboard.declareTypes([.string], owner: nil)
-                                        pasteboard.setString(url, forType: .string)
-                                    }) {
-                                        HStack(spacing: 2) {
-                                            Image(systemName: "doc.on.doc")
-                                                .font(.system(size: 10))
-                                            Text("复制链接")
-                                                .font(.system(size: 9))
-                                        }
-                                        .foregroundColor(.blue)
-                                        .padding(.horizontal, 6)
-                                        .padding(.vertical, 2)
-                                        .background(Color.blue.opacity(0.1))
-                                        .cornerRadius(4)
-                                    }
-                                    .buttonStyle(PlainButtonStyle())
-                                    .help("复制视频链接")
-                                }
-                            }
-                            .padding(.vertical, 2)
+                            LogRowView(entry: parseLogLine(line))
                         }
                         
                         Color.clear
                             .frame(height: 1)
                             .id("bottom")
                     }
-                    .padding(10)
+                    .padding(2)
                 }
                 .background(Color.clear)
-                .cornerRadius(8)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color.primary.opacity(0.1), lineWidth: 1)
-                )
                 .onChange(of: logManager.logLines) { _ in
                     withAnimation {
                         proxy.scrollTo("bottom", anchor: .bottom)
@@ -1447,7 +1534,7 @@ struct VideoDownloadRowView: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Text(video.title)
-                        .font(.system(size: 13, weight: .bold))
+                        .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(.primary)
                         .lineLimit(1)
                     
@@ -1542,10 +1629,14 @@ struct VideoDownloadRowView: View {
             .buttonStyle(PlainButtonStyle())
             .disabled(isDownloadDisabled)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 4)
-        .background(Color.primary.opacity(0.03))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
         .cornerRadius(8)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.primary.opacity(0.05), lineWidth: 1)
+        )
     }
     
     private var downloadButtonImage: String {
