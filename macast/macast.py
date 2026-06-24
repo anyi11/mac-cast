@@ -104,7 +104,8 @@ class MacastPluginManager:
         self.create_plugin_dir(PROTOCOL_DIR)
         self.renderer_list = [renderer_default]
         self.renderer_list += self.load_macast_plugin(RENDERER_DIR)
-        self.protocol_list = [protocol_default]
+        from .nirvana import NVAProtocol
+        self.protocol_list = [protocol_default, MacastPlugin(None, 'NVA Protocol', NVAProtocol(), 'darwin,win32,linux')]
         self.protocol_list += self.load_macast_plugin(PROTOCOL_DIR)
 
     def get_renderer(self, name):
@@ -422,6 +423,11 @@ class Macast(App):
 
     def renderer_av_uri(self, uri):
         logger.info("renderer_av_uri: " + uri)
+        if uri.startswith('{'):
+            try:
+                uri = json.loads(uri).get('video', uri)
+            except:
+                pass
         if self.copy_menuitem is not None:
             self.copy_menuitem.callback = lambda _: pyperclip.copy(uri)
             return
@@ -506,7 +512,12 @@ def gui(renderer=None, protocol=None, lang=gettext.gettext):
     if renderer is None:
         renderer = MPVRenderer(lang, Setting.mpv_default_path)
     if protocol is None:
-        protocol = DLNAProtocol()
+        setting_protocol = Setting.get(SettingProperty.Macast_Protocol, 'DLNA Protocol')
+        if setting_protocol == 'NVA Protocol':
+            from .nirvana import NVAProtocol
+            protocol = NVAProtocol()
+        else:
+            protocol = DLNAProtocol()
     Macast(renderer, protocol, lang).start()
 
 
@@ -525,5 +536,10 @@ def cli(renderer=None, protocol=None):
         else:
             renderer = MPVRenderer(path=Setting.mpv_default_path)
     if protocol is None:
-        protocol = DLNAProtocol()
+        setting_protocol = Setting.get(SettingProperty.Macast_Protocol, 'DLNA Protocol')
+        if setting_protocol == 'NVA Protocol':
+            from .nirvana import NVAProtocol
+            protocol = NVAProtocol()
+        else:
+            protocol = DLNAProtocol()
     Service(renderer, protocol).run()

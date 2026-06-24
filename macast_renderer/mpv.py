@@ -83,6 +83,7 @@ class MPVRenderer(Renderer):
         self.mpv_version_newer = True
         self.stop_timer = None
         self.stop_timer_lock = threading.Lock()
+        self.extra_audio = None
         try:
             out = subprocess.check_output([self.path, '--version'], stderr=subprocess.STDOUT)
             out_str = out.decode('utf-8', errors='ignore')
@@ -107,6 +108,11 @@ class MPVRenderer(Renderer):
                 self.stop_timer.cancel()
             
             def deferred_quit():
+                with self.stop_timer_lock:
+                    if self.stop_timer is None:
+                        logger.info("Deferred quit cancelled: new cast request received in the meantime.")
+                        return
+                    self.stop_timer = None
                 logger.info("No new cast request received after Stop. Quitting player...")
                 self.send_command(['quit'])
             
@@ -139,10 +145,33 @@ class MPVRenderer(Renderer):
                 self.stop_timer.cancel()
                 self.stop_timer = None
 
-        if not self.ipc_connected_event.is_set():
-            logger.info("mpv not connected. Ensuring it starts...")
+        if not self.ipc_connected_event.is_set() or (self.proc and self.proc.poll() is not None):
+            logger.info("mpv not connected or process dead. Ensuring it starts...")
+            self.ipc_connected_event.clear()
             self.start_event.set()
             self.ipc_connected_event.wait(timeout=3.0)
+
+        extra_audio = None
+        headers = None
+        if isinstance(url, dict):
+            extra_audio = url.get('audio')
+            headers = url.get('headers')
+            url = url.get('video')
+        elif isinstance(url, str) and url.startswith('{'):
+            try:
+                data = json.loads(url)
+                if isinstance(data, dict):
+                    extra_audio = data.get('audio')
+                    headers = data.get('headers')
+                    url = data.get('video')
+            except Exception as e:
+                logger.error(f"Error parsing JSON URL payload: {e}")
+
+        # Always set or clear http-header-fields to avoid leaking headers from previous casts
+        if headers:
+            self.send_command(['set_property', 'http-header-fields', headers])
+        else:
+            self.send_command(['set_property', 'http-header-fields', ''])
 
         if not self.navigating:
             if self.history_index >= 0 and self.history_index < len(self.history) - 1:
@@ -153,16 +182,19 @@ class MPVRenderer(Renderer):
         self.navigating = False
         self.update_history_properties()
 
-        options = {'start': start}
+        options = {'start': str(start)}
         player_size = Setting.get(SettingProperty.PlayerSize,
                                   default=SettingProperty.PlayerSize_Normal.value)
         if player_size == SettingProperty.PlayerSize_FullScreen.value:
             options['fullscreen'] = 'yes'
+
         options_str = ','.join([f'{i}={options[i]}' for i in options])
+
         if self.mpv_version_newer:
             self.send_command(['loadfile', url, 'replace', -1, options_str])
         else:
             self.send_command(['loadfile', url, 'replace', options_str])
+        self.extra_audio = extra_audio
 
     def set_media_title(self, data):
         """ data : string
@@ -356,6 +388,11 @@ class MPVRenderer(Renderer):
                 self.playing = True
                 # self.set_state_transport('TRANSITIONING')
                 cherrypy.engine.publish('renderer_av_uri', self.protocol.get_state_url())
+            elif res['event'] == 'file-loaded':
+                if self.extra_audio:
+                    logger.info(f"Adding extra audio track on file-loaded event: {self.extra_audio}")
+                    self.send_command(['audio-add', self.extra_audio, 'select'])
+                    self.extra_audio = None
             elif res['event'] == 'client-message':
                 args = res.get('args', [])
                 logger.info(f"Received client-message: {args}")
@@ -423,6 +460,7 @@ class MPVRenderer(Renderer):
                     self.ipc_sock = socket.socket(socket.AF_UNIX,
                                                   socket.SOCK_STREAM)
                     self.ipc_sock.connect(self.mpv_sock)
+                    self.ipc_sock.settimeout(2.0)
                 cherrypy.engine.publish('mpvipc_start')
                 cherrypy.engine.publish('renderer_start')
                 self.ipc_once_connected = True
@@ -444,6 +482,10 @@ class MPVRenderer(Renderer):
                     res += data
                     if data[-1] != 10:
                         continue
+                except socket.timeout:
+                    if self.proc and self.proc.poll() is not None:
+                        break
+                    continue
                 except Exception as e:
                     logger.debug(e)
                     break

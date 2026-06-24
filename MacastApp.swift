@@ -1082,6 +1082,10 @@ struct SettingsView: View {
                             get: { settingsManager.settings.CheckUpdate == 1 },
                             set: { settingsManager.settings.CheckUpdate = $0 ? 1 : 0 }
                         ))
+                        Toggle("哔哩必连 (Bilibili 私有投屏协议)", isOn: Binding(
+                            get: { settingsManager.settings.Macast_Protocol == "NVA Protocol" },
+                            set: { settingsManager.settings.Macast_Protocol = $0 ? "NVA Protocol" : "DLNA Protocol" }
+                        ))
                     }
                     .padding(.leading, 96)
                 }

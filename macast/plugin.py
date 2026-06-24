@@ -125,6 +125,10 @@ class SSDPPlugin(plugins.SimplePlugin):
             'uuid:{}::urn:schemas-upnp-org:service:AVTransport:1'.format(
                 Setting.get_usn())
         ]
+        from .utils import SettingProperty
+        if Setting.get(SettingProperty.Macast_Protocol, 'DLNA Protocol') == 'NVA Protocol':
+            self.devices.append('uuid:{}::urn:schemas-upnp-org:service:NvaLink:1'.format(Setting.get_usn()))
+            self.devices.append('uuid:{}::urn:app-bilibili-com:service:NirvanaControl:3'.format(Setting.get_usn()))
 
     def notify(self):
         """ssdp do notify

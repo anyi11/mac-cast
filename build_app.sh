@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+export DEVELOPER_DIR="/Applications/Xcode-beta.app/Contents/Developer"
+
 echo "=== Compiling Swift frontend ==="
 SDK_PATH=$(xcrun --show-sdk-path -sdk macosx)
 swiftc -parse-as-library -O -sdk "$SDK_PATH" -target arm64-apple-macosx13.0 MacastApp.swift -o MacastUI
