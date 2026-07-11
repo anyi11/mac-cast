@@ -84,6 +84,7 @@ class MPVRenderer(Renderer):
         self.stop_timer = None
         self.stop_timer_lock = threading.Lock()
         self.extra_audio = None
+        self.last_uri_set_time = 0
         try:
             out = subprocess.check_output([self.path, '--version'], stderr=subprocess.STDOUT)
             out_str = out.decode('utf-8', errors='ignore')
@@ -102,6 +103,9 @@ class MPVRenderer(Renderer):
 
 
     def set_media_stop(self):
+        if time.time() - self.last_uri_set_time < 1.0:
+            logger.info("Ignoring Stop request received immediately after SetAVTransportURI (potential out-of-order command).")
+            return
         self.send_command(['stop'])
         with self.stop_timer_lock:
             if self.stop_timer is not None:
@@ -140,6 +144,7 @@ class MPVRenderer(Renderer):
     def set_media_url(self, url, start="0"):
         """ data : string
         """
+        self.last_uri_set_time = time.time()
         with self.stop_timer_lock:
             if self.stop_timer is not None:
                 self.stop_timer.cancel()
@@ -529,11 +534,6 @@ class MPVRenderer(Renderer):
                 'osc-seekbarstyle=bar,osc-visibility=auto',
                 '--osd-playing-msg=',
                 '--tls-verify=no',
-                '--ytdl=no',
-                '--cache-pause-initial=no',
-                '--cache-pause=no',
-                '--demuxer-lavf-probesize=200000',
-                '--demuxer-lavf-analyzeduration=1.0',
                 '--cache=yes'
             ]
 
