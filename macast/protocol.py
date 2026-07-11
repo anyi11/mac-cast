@@ -471,7 +471,8 @@ class DLNAProtocol(Protocol):
                          kwargs={
                              'service': service,
                              'client': client
-                         }).start()
+                         },
+                         daemon=True).start()
         return {
             "SID": client.sid,
             "TIMEOUT": "Second-{}".format(client.timeout)
@@ -893,7 +894,7 @@ class Handler:
     def __download_plugin(self, path, url):
         try:
             with open(path, 'wb') as f:
-                f.write(requests.get(url).content)
+                f.write(requests.get(url, timeout=30).content)
         except Exception as e:
             logger.error(f"download plugin error: {e}")
         finally:

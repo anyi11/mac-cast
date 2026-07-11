@@ -4,13 +4,14 @@ import gettext
 import logging
 from macast import Setting, SETTING_DIR
 
-# Configure root logger to output all logs to macast.log
+# Configure root logger to output all logs to macast.log with rotation (max 100KB)
 os.makedirs(SETTING_DIR, exist_ok=True)
 log_path = os.path.join(SETTING_DIR, 'macast.log')
+from logging.handlers import RotatingFileHandler
+handler = RotatingFileHandler(log_path, maxBytes=100 * 1024, backupCount=1, encoding='utf-8')
 logging.basicConfig(
     level=logging.DEBUG,
-    filename=log_path,
-    filemode='a',
+    handlers=[handler],
     format='%(asctime)s [%(name)s] [%(levelname)s] %(message)s'
 )
 

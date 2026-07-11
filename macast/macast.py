@@ -348,7 +348,7 @@ class Macast(App):
         release_url = 'https://github.com/xfangfang/Macast/releases/latest'
         api_url = 'https://api.github.com/repos/xfangfang/Macast/releases/latest'
         try:
-            res = json.loads(requests.get(api_url).text)
+            res = json.loads(requests.get(api_url, timeout=5).text)
             online_version = re.findall(r'(\d+\.*\d+)', res['tag_name'])[0]
 
             logger.info("tag_name: {}".format(res['tag_name']))
@@ -391,7 +391,7 @@ class Macast(App):
             threading.Thread(target=lambda: (
                 time.sleep(2),
                 self.notification(_("Macast is hidden"), msg, sound=False),
-            )).start()
+            ), daemon=True).start()
         self.update_service_status()
 
     def service_stop(self):

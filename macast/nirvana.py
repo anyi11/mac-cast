@@ -536,14 +536,14 @@ class NetworkManager:
             url = f'{url_path}?{query}'
 
         try:
-            data = requests.get(url, headers=headers, proxies=NetworkManager.proxies)
+            data = requests.get(url, headers=headers, proxies=NetworkManager.proxies, timeout=5)
             return data
         except OSError as e:
             logger.error(f'nva requests.get OSError:{e}')
             if 'proxy' in str(e):
                 try:
                     NetworkManager.proxies = {'http': None, "https": None}
-                    data = requests.get(url, proxies=NetworkManager.proxies)
+                    data = requests.get(url, proxies=NetworkManager.proxies, timeout=5)
                     return data
                 except Exception as e:
                     logger.error(f'nva requests.get Exception:{e}')
@@ -702,7 +702,7 @@ class NVAConectionBaseHandler:
         self.ping_thread_running = True
         self.ping_thread = threading.Thread(target=self.send_ping_thread,
                                              name='NVA_PING_THREAD',
-                                             daemon=False)
+                                             daemon=True)
         self.ping_thread.start()
 
     def cmd_from_client(self, method, counter, params=None):
@@ -1056,7 +1056,7 @@ class NVAConectionHandler(NVAConectionBaseHandler):
                 self.get_video_info()
             logger.info("end get_extra_info")
 
-        threading.Thread(target=get_extra_info).start()
+        threading.Thread(target=get_extra_info, daemon=True).start()
 
     def update_play_state(self):
         danmuku_open = True

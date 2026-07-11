@@ -96,8 +96,6 @@ class Service:
         self.ssdp_monitor.subscribe()
         cherrypy.config.update({
             'log.screen': False,
-            'log.access_file': os.path.join(SETTING_DIR, 'macast.log'),
-            'log.error_file': os.path.join(SETTING_DIR, 'macast.log'),
         })
         # cherrypy.engine.autoreload.files.add(Setting.setting_path)
         cherrypy_config = {
@@ -122,6 +120,9 @@ class Service:
 
         self.cherrypy_application = cherrypy.tree.mount(self.protocol.handler, '/', config=cherrypy_config)
         cherrypy.engine.signals.subscribe()
+        if 'Macast.app' in os.path.abspath(__file__):
+            t = threading.Thread(target=self.parent_monitor, name="PARENT_MONITOR", daemon=True)
+            t.start()
 
     @property
     def renderer(self):
@@ -187,5 +188,18 @@ class Service:
     def run_async(self):
         if Setting.is_service_running():
             return
-        self.thread = threading.Thread(target=self.run, name="SERVICE_THREAD")
+        self.thread = threading.Thread(target=self.run, name="SERVICE_THREAD", daemon=True)
         self.thread.start()
+
+    def parent_monitor(self):
+        import os
+        import time
+        initial_ppid = os.getppid()
+        if initial_ppid == 1:
+            return
+        while True:
+            time.sleep(2)
+            if os.getppid() != initial_ppid:
+                logger.info("Parent process died. Stopping service.")
+                Setting.stop_service()
+                break

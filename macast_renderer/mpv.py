@@ -116,7 +116,7 @@ class MPVRenderer(Renderer):
                 logger.info("No new cast request received after Stop. Quitting player...")
                 self.send_command(['quit'])
             
-            self.stop_timer = threading.Timer(1.5, deferred_quit)
+            self.stop_timer = threading.Timer(8.0, deferred_quit)
             self.stop_timer.start()
 
     def set_media_pause(self):
@@ -527,7 +527,14 @@ class MPVRenderer(Renderer):
                 '--script-opts=osc-timetotal=yes,osc-layout=bottombar,' +
                 'osc-title=${title},osc-showwindowed=yes,' +
                 'osc-seekbarstyle=bar,osc-visibility=auto',
-                '--osd-playing-msg='
+                '--osd-playing-msg=',
+                '--tls-verify=no',
+                '--ytdl=no',
+                '--cache-pause-initial=no',
+                '--cache-pause=no',
+                '--demuxer-lavf-probesize=200000',
+                '--demuxer-lavf-analyzeduration=1.0',
+                '--cache=yes'
             ]
 
             lock_size = Setting.get(SettingProperty.PlayerLockSize,
@@ -710,16 +717,17 @@ class MPVRenderer(Renderer):
             # some thing wrong with mpv
             cherrypy.engine.publish("app_notify", "Macast", "MPV Can't start")
             logger.error("mpv cannot start")
-            threading.Thread(target=lambda: Setting.stop_service(), name="MPV_STOP_SERVICE").start()
+            threading.Thread(target=lambda: Setting.stop_service(), name="MPV_STOP_SERVICE", daemon=True).start()
+
 
     def start(self):
         """Start mpv and mpv ipc
         """
         super(MPVRenderer, self).start()
         logger.info("starting mpv and mpv ipc")
-        self.mpv_thread = threading.Thread(target=self.start_mpv, name="MPV_THREAD")
+        self.mpv_thread = threading.Thread(target=self.start_mpv, name="MPV_THREAD", daemon=True)
         self.mpv_thread.start()
-        self.ipc_thread = threading.Thread(target=self.start_ipc, name="MPV_IPC_THREAD")
+        self.ipc_thread = threading.Thread(target=self.start_ipc, name="MPV_IPC_THREAD", daemon=True)
         self.ipc_thread.start()
 
     def stop(self):
@@ -773,7 +781,7 @@ class MPVRenderer(Renderer):
         if self.protocol.get_state_transport_state() == 'PLAYING':
             cherrypy.engine.subscribe('mpvipc_start', loadfile)
 
-        threading.Thread(target=restart, args=()).start()
+        threading.Thread(target=restart, args=(), daemon=True).start()
 
 
 class SettingProperty(Enum):

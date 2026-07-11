@@ -77,7 +77,7 @@ class SSDPServer:
         if not self.running:
             self.running = True
             self.sending_byebye = True
-            self.ssdp_thread = threading.Thread(target=self.run, name="SSDP_THREAD")
+            self.ssdp_thread = threading.Thread(target=self.run, name="SSDP_THREAD", daemon=True)
             self.ssdp_thread.start()
 
     def stop(self, byebye=True):
@@ -141,7 +141,7 @@ class SSDPServer:
         except Exception as e:
             logger.error(e)
             cherrypy.engine.publish("app_notify", "Macast", "SSDP Can't start")
-            threading.Thread(target=lambda: Setting.stop_service(), name="SSDP_STOP_THREAD").start()
+            threading.Thread(target=lambda: Setting.stop_service(), name="SSDP_STOP_THREAD", daemon=True).start()
             return
         self.sock.settimeout(1)
 
