@@ -136,13 +136,18 @@ class Setting:
 
     @staticmethod
     def is_ip_changed():
-        if Setting.last_ip != Setting.get_ip():
+        current_ip = Setting.get_ip()
+        if Setting.last_ip is None:
+            Setting.last_ip = current_ip
+            return False
+        if Setting.last_ip != current_ip:
+            Setting.last_ip = current_ip
             return True
         return False
 
     @staticmethod
     def get_ip():
-        last_ip = []
+        ip_set = []
         gateways = ni.gateways()  # {type: [{ip, interface, default},{},...], type: []}
         interfaces = set(Setting.get(SettingProperty.Additional_Interfaces, []))
         interface_type = [ni.AF_INET, ni.AF_LINK]
@@ -163,10 +168,9 @@ class Setting:
             if ni.AF_INET in iface:
                 for j in iface[ni.AF_INET]:
                     if 'addr' in j and 'netmask' in j:
-                        last_ip.append((j['addr'], j['netmask']))
-        Setting.last_ip = set(last_ip)
-        logger.debug(Setting.last_ip)
-        return Setting.last_ip
+                        ip_set.append((j['addr'], j['netmask']))
+        logger.debug(set(ip_set))
+        return set(ip_set)
 
     @staticmethod
     def get_port():

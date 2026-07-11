@@ -117,6 +117,17 @@ class MPVRenderer(Renderer):
                         logger.info("Deferred quit cancelled: new cast request received in the meantime.")
                         return
                     self.stop_timer = None
+                
+                try:
+                    protocol = self.protocol
+                    transport_state = protocol.get_state_transport_state() if protocol else 'STOPPED'
+                except Exception:
+                    transport_state = 'STOPPED'
+
+                if self.playing or transport_state not in ['STOPPED', 'NO_MEDIA_PRESENT']:
+                    logger.info(f"Deferred quit cancelled: player is active (playing={self.playing}, state={transport_state}).")
+                    return
+
                 logger.info("No new cast request received after Stop. Quitting player...")
                 self.send_command(['quit'])
             
@@ -485,8 +496,13 @@ class MPVRenderer(Renderer):
                     if data == b'':
                         break
                     res += data
-                    if data[-1] != 10:
+                    if res[-1] != 10:
                         continue
+                    
+                    msgs = res.decode().strip().split('\n')
+                    res = b''
+                    for msg in msgs:
+                        self.update_state(msg)
                 except socket.timeout:
                     if self.proc and self.proc.poll() is not None:
                         break
@@ -494,16 +510,8 @@ class MPVRenderer(Renderer):
                 except Exception as e:
                     logger.debug(e)
                     break
-                try:
-                    msgs = res.decode().strip().split('\n')
-                    for msg in msgs:
-                        self.update_state(msg)
-                except Exception as e:
-                    logger.error("decode error: {}".format(e))
-                    logger.error(f"decode error data: {msg}")
-                    logger.error(f"decode error data list: {msgs}")
-                finally:
-                    res = b''
+                except KeyboardInterrupt:
+                    break
             self.ipc_sock.close()
             self.ipc_connected_event.clear()
             logger.error("mpv ipc stopped")

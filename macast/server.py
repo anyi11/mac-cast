@@ -151,7 +151,7 @@ class Service:
         see also: plugin.py -> class SSDPPlugin -> notify
         """
         self.ssdp_monitor_counter += 1
-        if Setting.is_ip_changed() or self.ssdp_monitor_counter == 10:
+        if Setting.is_ip_changed() or self.ssdp_monitor_counter >= 600:
             self.ssdp_monitor_counter = 0
             cherrypy.engine.publish('ssdp_update_ip')
         cherrypy.engine.publish('ssdp_notify')
