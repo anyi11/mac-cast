@@ -1,7 +1,9 @@
 #!/bin/bash
 set -e
 
-export DEVELOPER_DIR="/Applications/Xcode-beta.app/Contents/Developer"
+if [ -d "/Applications/Xcode-beta.app/Contents/Developer" ]; then
+    export DEVELOPER_DIR="/Applications/Xcode-beta.app/Contents/Developer"
+fi
 
 echo "=== Compiling Swift frontend ==="
 SDK_PATH=$(xcrun --show-sdk-path -sdk macosx)
