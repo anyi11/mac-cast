@@ -844,6 +844,7 @@ class NVAConectionBaseHandler:
 class NVAConectionHandler(NVAConectionBaseHandler):
     def __init__(self, conn, req):
         super(NVAConectionHandler, self).__init__(conn, req)
+        self.ip = req.remote.ip
         self.session = req.headers.get('Session', '')
         self.uuid = req.headers.get('UUID', '')
         self.playlist = []
@@ -867,6 +868,20 @@ class NVAConectionHandler(NVAConectionBaseHandler):
         self.title_p = ''
         self.is_portrait = False
         self.danmaku_switch_save = True
+
+    def log_cast_event(self):
+        client_ip = getattr(self, 'ip', '127.0.0.1')
+        title_str = self.title.strip()
+        if getattr(self, 'title_p', ''):
+            title_str = f"{title_str} {self.title_p}".strip()
+        if self.playurl_type == 4:
+            title_str = f"直播间: {self.roomId}"
+        elif not title_str:
+            title_str = "哔哩哔哩视频"
+        
+        # Get the URL payload
+        url = self.protocol.get_state_url()
+        logger.info(f"[CAST_EVENT] 设备 {client_ip} 投屏了: {title_str} | 链接: {url}")
 
     def __del__(self):
         logger.info(f'NVA Handler Destroyed Session: {self.session[-4:]}')
@@ -926,8 +941,10 @@ class NVAConectionHandler(NVAConectionBaseHandler):
                 if int(self.cid) == int(video['playurl_args']['cid']):
                     play_index = index
                     logger.info(f"Currently playing part {index + 1}: {title_p}")
+                    self.title_p = title_p
                     self.is_portrait = video['is_portrait']
                     self.renderer.set_media_title(f'{self.title} {title_p}')
+            self.log_cast_event()
         except Exception as e:
             logger.error(f"Error getting video info: {e}")
             cherrypy.engine.publish('app_notify', 'ERROR', f"Error getting video info: {e}")
@@ -1045,6 +1062,7 @@ class NVAConectionHandler(NVAConectionBaseHandler):
         def get_extra_info():
             if self.playurl_type == 4:
                 self.renderer.set_media_title(f'直播间: {self.roomId}')
+                self.log_cast_event()
                 return
             logger.info("start get_extra_info")
             DanmakuManager.get_danmaku(self.cid, self.sub)
@@ -1054,6 +1072,8 @@ class NVAConectionHandler(NVAConectionBaseHandler):
             })
             if self.content_type and int(self.content_type) != 2:
                 self.get_video_info()
+            else:
+                self.log_cast_event()
             logger.info("end get_extra_info")
 
         threading.Thread(target=get_extra_info, daemon=True).start()

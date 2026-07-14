@@ -384,7 +384,15 @@ class DownloadItem: ObservableObject, Identifiable {
     init(urlStr: String, title: String) {
         self.id = urlStr
         self.title = title
-        self.url = URL(string: urlStr) ?? URL(fileURLWithPath: "")
+        
+        if urlStr.hasPrefix("{"),
+           let data = urlStr.data(using: .utf8),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let videoUrlStr = json["video"] as? String {
+            self.url = URL(string: videoUrlStr) ?? URL(fileURLWithPath: "")
+        } else {
+            self.url = URL(string: urlStr) ?? URL(fileURLWithPath: "")
+        }
     }
     
     func startDownload(session: URLSession) {
