@@ -178,6 +178,11 @@ class LogManager: ObservableObject {
         return paths[0].appendingPathComponent("Macast/macast.log")
     }
     
+    private var logBackupURL: URL {
+        let paths = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
+        return paths[0].appendingPathComponent("Macast/macast.log.1")
+    }
+    
     private var historyURL: URL {
         let paths = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
         return paths[0].appendingPathComponent("Macast/history.json")
@@ -210,7 +215,7 @@ class LogManager: ObservableObject {
         timer = nil
     }
     
-    private func readLog() {
+    func readLog() {
         guard !isReading else { return }
         guard FileManager.default.fileExists(atPath: logURL.path) else {
             DispatchQueue.main.async {
@@ -222,6 +227,7 @@ class LogManager: ObservableObject {
         
         isReading = true
         let url = logURL
+        let backupUrl = logBackupURL
         
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             defer {
@@ -231,6 +237,14 @@ class LogManager: ObservableObject {
             }
             
             do {
+                var backupText = ""
+                if FileManager.default.fileExists(atPath: backupUrl.path) {
+                    if let backupData = try? Data(contentsOf: backupUrl),
+                       let text = String(data: backupData, encoding: .utf8) {
+                        backupText = text
+                    }
+                }
+                
                 let data = try Data(contentsOf: url)
                 guard let text = String(data: data, encoding: .utf8) else {
                     DispatchQueue.main.async {
@@ -240,7 +254,8 @@ class LogManager: ObservableObject {
                     return
                 }
                 
-                let allLines = text.components(separatedBy: .newlines)
+                let combinedText = backupText + text
+                let allLines = combinedText.components(separatedBy: .newlines)
                 
                 var filtered: [String] = []
                 filtered.reserveCapacity(min(allLines.count, 100))
@@ -1385,10 +1400,7 @@ struct LogView: View {
         }
         .frame(minWidth: 500, maxWidth: .infinity, minHeight: 380, maxHeight: .infinity)
         .onAppear {
-            logManager.startMonitoring()
-        }
-        .onDisappear {
-            logManager.stopMonitoring()
+            logManager.readLog()
         }
     }
 }
@@ -1680,6 +1692,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         SettingsManager.shared.load()
         MacastProcessManager.shared.start()
         PlaybackManager.shared.startPolling()
+        LogManager.shared.startMonitoring()
         
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let button = statusItem?.button {

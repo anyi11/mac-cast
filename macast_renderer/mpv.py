@@ -102,11 +102,7 @@ class MPVRenderer(Renderer):
             logger.error(f"Failed to detect mpv version, defaulting to modern syntax: {e}")
 
 
-    def set_media_stop(self):
-        if time.time() - self.last_uri_set_time < 1.0:
-            logger.info("Ignoring Stop request received immediately after SetAVTransportURI (potential out-of-order command).")
-            return
-        self.send_command(['stop'])
+    def start_deferred_quit_timer(self, delay=5.0):
         with self.stop_timer_lock:
             if self.stop_timer is not None:
                 self.stop_timer.cancel()
@@ -128,11 +124,18 @@ class MPVRenderer(Renderer):
                     logger.info(f"Deferred quit cancelled: player is active (playing={self.playing}, state={transport_state}).")
                     return
 
-                logger.info("No new cast request received after Stop. Quitting player...")
+                logger.info("No new cast request received. Quitting player...")
                 self.send_command(['quit'])
             
-            self.stop_timer = threading.Timer(8.0, deferred_quit)
+            self.stop_timer = threading.Timer(delay, deferred_quit)
             self.stop_timer.start()
+
+    def set_media_stop(self):
+        if time.time() - self.last_uri_set_time < 1.0:
+            logger.info("Ignoring Stop request received immediately after SetAVTransportURI (potential out-of-order command).")
+            return
+        self.send_command(['stop'])
+        self.start_deferred_quit_timer(3.0)
 
     def set_media_pause(self):
         self.send_command(['set_property', 'pause', True])
@@ -165,7 +168,7 @@ class MPVRenderer(Renderer):
             logger.info("mpv not connected or process dead. Ensuring it starts...")
             self.ipc_connected_event.clear()
             self.start_event.set()
-            self.ipc_connected_event.wait(timeout=3.0)
+            self.ipc_connected_event.wait(timeout=10.0)
 
         extra_audio = None
         headers = None
@@ -424,6 +427,7 @@ class MPVRenderer(Renderer):
                 # video comes to end
                 self.playing = False
                 self.set_state_stop()
+                self.start_deferred_quit_timer(5.0)
             elif res['event'] == 'playback-restart':
                 # video is ready to play
                 if self.pause:
@@ -542,7 +546,11 @@ class MPVRenderer(Renderer):
                 'osc-seekbarstyle=bar,osc-visibility=auto',
                 '--osd-playing-msg=',
                 '--tls-verify=no',
-                '--cache=yes'
+                '--ytdl=no',
+                '--cache-pause-initial=no',
+                '--cache-pause=no',
+                '--cache=yes',
+                '--force-window=yes'
             ]
 
             lock_size = Setting.get(SettingProperty.PlayerLockSize,
@@ -550,7 +558,6 @@ class MPVRenderer(Renderer):
             if lock_size == SettingProperty.PlayerLockSize_True.value:
                 params.append('--no-auto-window-resize')
                 params.append('--keepaspect-window=no')
-                params.append('--force-window=yes')
 
             ontop = Setting.get(SettingProperty.PlayerOntop,
                                 default=SettingProperty.PlayerOntop_True.value)

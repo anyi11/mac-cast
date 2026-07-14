@@ -10,8 +10,8 @@ swiftc -parse-as-library -O -sdk "$SDK_PATH" -target arm64-apple-macosx13.0 Maca
 if [ ! -f bin/MacOS/mpv ]; then
     echo "=== mpv binary not found, downloading... ==="
     mkdir -p bin/MacOS
-    curl -L -o mpv-latest.tar.gz https://laboratory.stolendata.net/~djinn/mpv_osx/mpv-latest.tar.gz
-    tar -C bin/MacOS --strip-components 3 -xzvf mpv-latest.tar.gz mpv.app/Contents/MacOS
+    curl -L -o mpv-latest.tar.gz https://laboratory.stolendata.net/~djinn/mpv_osx/mpv-arm64-latest.tar.gz
+    tar -C bin/MacOS --strip-components 4 -xzvf mpv-latest.tar.gz "*/mpv.app/Contents/MacOS"
     rm -f mpv-latest.tar.gz
 fi
 
@@ -46,6 +46,32 @@ find Macast.app/Contents/Resources/site-packages/lxml -name "*.pxi" -delete
 find Macast.app/Contents/Resources/site-packages/lxml -name "*.h" -delete
 rm -rf Macast.app/Contents/Resources/site-packages/cherrypy/test
 rm -rf Macast.app/Contents/Resources/site-packages/cheroot/test
+
+echo "=== Thinning and stripping Python extension binaries ==="
+HOST_ARCH=$(uname -m)
+find Macast.app/Contents/Resources/site-packages -type f -name "*.so" | while read -r file; do
+    if lipo -info "$file" 2>/dev/null | grep -q "Architectures in the fat file"; then
+        if lipo -info "$file" 2>/dev/null | grep -q "$HOST_ARCH"; then
+            lipo -thin "$HOST_ARCH" "$file" -output "$file.tmp"
+            mv "$file.tmp" "$file"
+        fi
+    fi
+    strip -x "$file" 2>/dev/null || true
+done
+
+echo "=== Removing stale/invalid signatures ==="
+find Macast.app -type f | while read -r file; do
+    if file "$file" | grep -q "Mach-O"; then
+        codesign --remove-signature "$file" 2>/dev/null || true
+    fi
+done
+
+echo "=== Signing nested binaries manually ==="
+find Macast.app -type f | while read -r file; do
+    if file "$file" | grep -q "Mach-O"; then
+        codesign --force --sign - "$file" 2>/dev/null || true
+    fi
+done
 
 echo "=== Signing App Bundle ==="
 codesign --force --deep --sign - Macast.app

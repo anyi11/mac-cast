@@ -31,6 +31,10 @@ class Sock:
     def __init__(self, ip):
         self.ip = ip
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            self.sock.bind((self.ip, 0))
+        except Exception as e:
+            logger.error(f"Failed to bind SSDP Sock to {self.ip}: {e}")
         self.ssdp_addr = socket.inet_aton(SSDP_ADDR)
         self.interface = socket.inet_aton(self.ip)
         try:
@@ -268,7 +272,14 @@ class SSDPServer:
                     # asyncio.sleep(delay)
                     for ip, mask in self.ip_list:
                         if self.get_subnet_ip(ip, mask) == self.get_subnet_ip(host, mask):
-                            self.sock.sendto('\r\n'.join(response).format(ip).encode(), destination)
+                            sent = False
+                            for s in self.sock_list:
+                                if s.ip == ip:
+                                    s.send_it('\r\n'.join(response), destination)
+                                    sent = True
+                                    break
+                            if not sent:
+                                self.sock.sendto('\r\n'.join(response).format(ip).encode(), destination)
                             break
 
     def do_notify(self, usn):

@@ -1311,11 +1311,10 @@ class SelectPoller(object):
 
     def poll(self):
         if not self._fds:
-            time.sleep(self.timeout)
             return []
         try:
             r, w, x = select.select(self._fds, [], [], self.timeout)
-        except IOError as e:
+        except (IOError, ValueError, socket.error) as e:
             return []
         return r
 
@@ -1515,14 +1514,20 @@ class NVAProtocol(DLNAProtocol):
 
     def run_manager(self):
         while self.running:
-            with self.lock:
-                polled = self.poller.poll()
+            polled = self.poller.poll()
             if not self.running:
                 break
+            if not polled:
+                with self.lock:
+                    is_empty = len(self.poller._fds) == 0
+                if is_empty:
+                    time.sleep(0.5)
+                continue
             for fd in polled:
                 if not self.running:
                     break
-                nva = self.clients.get(fd, None)
+                with self.lock:
+                    nva = self.clients.get(fd, None)
                 if nva and not nva.terminated:
                     try:
                         data = nva.sock.recv(2048)
@@ -1537,6 +1542,7 @@ class NVAProtocol(DLNAProtocol):
                             nva.terminate()
                             with self.lock:
                                 self.poller.unregister(fd)
+                                self.clients.pop(fd, None)
                 del nva
 
     @property
