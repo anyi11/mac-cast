@@ -5,12 +5,14 @@
 # 拦截 UDP 443 (QUIC) 端口，强迫客户端降级到 TCP 触发 MITM
 AND,((PROTOCOL,UDP),(DEST-PORT,443)),REJECT-DROP
 
-[Script]
-# 数据篡改：用于处理 player 接口的广告数据 (requires-body=1)
-youtube_ad_block = type=http-response,pattern=^https?://www\.youtube\.com/youtubei/v1/player\?,requires-body=1,binary-mode=true,max-size=5242880,script-path=https://fastly.jsdelivr.net/gh/anyi11/mac-cast@3a0f2bc/youtube_adblock.js
+[Header Rewrite]
+# 移除 Alt-Svc 响应头，阻止向 QUIC 升级 (使用原生 Header Rewrite 避免网页解密乱码)
+^https?:\/\/.*\.youtube\.com\/.* header-del Alt-Svc
+^https?:\/\/.*\.googlevideo\.com\/.* header-del Alt-Svc
 
-# 协议降级：用于移除所有 YouTube 响应的 Alt-Svc 头部 (requires-body=0)
-youtube_alt_svc = type=http-response,pattern=^https?://.*\.youtube\.com/.*,requires-body=0,script-path=https://fastly.jsdelivr.net/gh/anyi11/mac-cast@3a0f2bc/youtube_adblock.js
+[Script]
+# 数据篡改：只处理 player 接口的广告数据 (requires-body=1)
+youtube_ad_block = type=http-response,pattern=^https?://www\.youtube\.com/youtubei/v1/player\?,requires-body=1,binary-mode=true,max-size=5242880,script-path=https://fastly.jsdelivr.net/gh/anyi11/mac-cast@3a0f2bc/youtube_adblock.js
 
 [MITM]
 hostname = %APPEND% *.googlevideo.com,www.youtube.com,youtubei.googleapis.com
