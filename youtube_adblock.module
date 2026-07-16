@@ -2,20 +2,12 @@
 #!desc=YouTube 广告拦截模块（支持网页 JSON 和 App 端 Protobuf 双模去广告）。已配置托管至个人 GitHub。
 #!system=mac,ios
 
-[Rule]
-# 拦截 UDP 443 端口，强迫客户端降级到 TCP 触发 MITM
-AND,((PROTOCOL,UDP),(DEST-PORT,443)),REJECT
-# 域名混淆对抗：直接拦截 googlevideo 广告视频流请求
-URL-REGEX,^https?:\/\/[\w-]+\.googlevideo\.com\/videoplayback\?.*(adformat|ad_type|pcmd|ovr),REJECT
-
-[Header Rewrite]
-# 移除 Alt-Svc 响应头，阻止向 QUIC 升级
-^https?:\/\/.*(youtube|google).*$ header-del Alt-Svc
-
 [Script]
-# 数据篡改：使用 CDN 托管的 JS 脚本 (指定 Commit 哈希以绕过缓存)
-youtube-adblock = type=http-response,pattern=^https:\/\/www\.youtube\.com\/youtubei\/v1\/player\?,requires-body=true,binary-mode=true,max-size=5242880,script-path=https://fastly.jsdelivr.net/gh/anyi11/mac-cast@8796574/youtube_adblock.js
+# 数据篡改：用于处理 player 接口的广告数据 (requires-body=1)
+YouTube广告拦截 = type=http-response,pattern=^https?://www\.youtube\.com/youtubei/v1/player\?,requires-body=1,binary-mode=true,max-size=5242880,script-path=https://fastly.jsdelivr.net/gh/anyi11/mac-cast@main/youtube_adblock.js
+
+# 协议降级：用于移除所有 YouTube 响应的 Alt-Svc 头部 (requires-body=0)
+YouTubeAltSvc移除 = type=http-response,pattern=^https?://.*\.youtube\.com/.*,requires-body=0,script-path=https://fastly.jsdelivr.net/gh/anyi11/mac-cast@main/youtube_adblock.js
 
 [MITM]
-# 启用 HTTPS 解密的域名范围
 hostname = %APPEND% *.googlevideo.com, www.youtube.com, youtubei.googleapis.com

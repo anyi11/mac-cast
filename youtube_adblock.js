@@ -4,7 +4,12 @@
  */
 
 const url = $request.url;
-const contentType = $response.headers['Content-Type'] || $response.headers['content-type'] || '';
+let headers = $response.headers || {};
+const contentType = headers['Content-Type'] || headers['content-type'] || '';
+
+// 移除 Alt-Svc 头部，防止升级到 HTTP/3 QUIC
+if (headers['Alt-Svc']) delete headers['Alt-Svc'];
+if (headers['alt-svc']) delete headers['alt-svc'];
 
 if (url.indexOf('/youtubei/v1/player') !== -1) {
     if (contentType.indexOf('application/json') !== -1) {
@@ -29,10 +34,10 @@ if (url.indexOf('/youtubei/v1/player') !== -1) {
                 }
             }
             cleanJson(body);
-            $done({ body: JSON.stringify(body) });
+            $done({ headers, body: JSON.stringify(body) });
         } catch (e) {
             console.log('[YouTube-Adblock] Failed to parse JSON: ' + e);
-            $done({});
+            $done({ headers });
         }
     } else if (contentType.indexOf('x-protobuf') !== -1 || contentType.indexOf('octet-stream') !== -1) {
         // B. Protobuf 二进制格式处理 (iOS/Android App 端)
@@ -40,19 +45,19 @@ if (url.indexOf('/youtubei/v1/player') !== -1) {
             let rawBody = $response.body; // Uint8Array
             if (rawBody) {
                 let modifiedBody = stripProtobufAds(rawBody);
-                $done({ body: modifiedBody });
+                $done({ headers, body: modifiedBody });
             } else {
-                $done({});
+                $done({ headers });
             }
         } catch (e) {
             console.log('[YouTube-Adblock] Failed to parse Protobuf: ' + e);
-            $done({});
+            $done({ headers });
         }
     } else {
-        $done({});
+        $done({ headers });
     }
 } else {
-    $done({});
+    $done({ headers });
 }
 
 // --- Protobuf 核心处理辅助函数 ---
@@ -110,6 +115,7 @@ function makeKey(tag, wireType) {
     return makeVarint((tag << 3) | wireType);
 }
 
+// 修复 makeVarint 的语法，Surge JS 引擎支持标准无符号右移
 function makeVarint(value) {
     let bytes = [];
     while (value >= 0x80) {
