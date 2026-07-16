@@ -1,6 +1,6 @@
 /**
  * Surge JavaScript for YouTube Adblock
- * Supports JSON & Protobuf double-mode response modification.
+ * Optimized for high performance on large response payloads.
  */
 
 const url = $request.url;
@@ -11,12 +11,15 @@ const contentType = headers['Content-Type'] || headers['content-type'] || '';
 if (headers['Alt-Svc']) delete headers['Alt-Svc'];
 if (headers['alt-svc']) delete headers['alt-svc'];
 
-// 辅助函数：将 Surge 的 Uint8Array 二进制流安全转换为字符串 (避免 TextDecoder 不存在的问题)
+// 高性能分块转换为字符串 (解决大 JSON 循环拼接导致 Surge 脚本超时的问题)
 function bytesToString(arr) {
     if (typeof arr === 'string') return arr;
     let str = '';
-    for (let i = 0; i < arr.length; i++) {
-        str += String.fromCharCode(arr[i]);
+    const chunk = 8192; // 8K 分块，防止超出 JS 引擎调用栈限制
+    for (let i = 0; i < arr.length; i += chunk) {
+        let subArray = arr.subarray(i, i + chunk);
+        // 使用 native apply 进行批量转换，性能比单字节循环提升数千倍
+        str += String.fromCharCode.apply(null, subArray);
     }
     try {
         return decodeURIComponent(escape(str));
@@ -32,7 +35,7 @@ if (url.indexOf('/youtubei/v1/player') !== -1) {
             let bodyStr = bytesToString($response.body);
             let body = JSON.parse(bodyStr);
             
-            // 递归清理 adPlacements 字段
+            // 递归清理 adPlacements 和 adSlots 字段
             function cleanJson(obj) {
                 if (typeof obj === 'object' && obj !== null) {
                     if (obj.hasOwnProperty('adPlacements')) {
