@@ -6,13 +6,14 @@
 AND,((PROTOCOL,UDP),(DEST-PORT,443)),REJECT-DROP
 
 [Header Rewrite]
-# 移除 Alt-Svc 响应头，阻止向 QUIC 升级 (使用原生 Header Rewrite 避免网页解密乱码)
+# 移除 Alt-Svc 响应头，阻止向 QUIC 升级
 ^https?:\/\/.*\.youtube\.com\/.* header-del Alt-Svc
 ^https?:\/\/.*\.googlevideo\.com\/.* header-del Alt-Svc
+^https?:\/\/.*\.googleapis\.com\/.* header-del Alt-Svc
 
 [Script]
-# 数据篡改：只处理 player 接口的广告数据 (requires-body=1)
-youtube_ad_block = type=http-response,pattern=^https?://www\.youtube\.com/youtubei/v1/player\?,requires-body=1,binary-mode=true,max-size=5242880,script-path=https://fastly.jsdelivr.net/gh/anyi11/mac-cast@3a0f2bc/youtube_adblock.js
+# 数据篡改：同时处理 www.youtube.com 和 youtubei.googleapis.com 的 player 接口
+youtube_ad_block = type=http-response,pattern=^https:\/\/.*youtubei?(\.googleapis)?\.com\/youtubei\/v1\/player,requires-body=1,binary-mode=true,max-size=5242880,script-path=https://fastly.jsdelivr.net/gh/anyi11/mac-cast@3a0f2bc/youtube_adblock.js
 
 [MITM]
 hostname = %APPEND% *.googlevideo.com,www.youtube.com,youtubei.googleapis.com
