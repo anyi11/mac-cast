@@ -13,8 +13,8 @@ URL-REGEX,^https?:\/\/[\w-]+\.googlevideo\.com\/videoplayback\?.*(adformat|ad_ty
 ^https?:\/\/.*(youtube|google).*$ header-del Alt-Svc
 
 [Script]
-# 数据篡改：使用 CDN 托管的 JS 脚本
-youtube-adblock = type=http-response,pattern=^https:\/\/www\.youtube\.com\/youtubei\/v1\/player\?,requires-body=true,binary-mode=true,max-size=5242880,script-path=https://fastly.jsdelivr.net/gh/anyi11/mac-cast@main/youtube_adblock.js
+# 数据篡改：使用 CDN 托管的 JS 脚本 (指定 Commit 哈希以绕过缓存)
+youtube-adblock = type=http-response,pattern=^https:\/\/www\.youtube\.com\/youtubei\/v1\/player\?,requires-body=true,binary-mode=true,max-size=5242880,script-path=https://fastly.jsdelivr.net/gh/anyi11/mac-cast@8796574/youtube_adblock.js
 
 [MITM]
 # 启用 HTTPS 解密的域名范围
