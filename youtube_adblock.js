@@ -11,11 +11,26 @@ const contentType = headers['Content-Type'] || headers['content-type'] || '';
 if (headers['Alt-Svc']) delete headers['Alt-Svc'];
 if (headers['alt-svc']) delete headers['alt-svc'];
 
+// 辅助函数：将 Surge 的 Uint8Array 二进制流安全转换为字符串 (避免 TextDecoder 不存在的问题)
+function bytesToString(arr) {
+    if (typeof arr === 'string') return arr;
+    let str = '';
+    for (let i = 0; i < arr.length; i++) {
+        str += String.fromCharCode(arr[i]);
+    }
+    try {
+        return decodeURIComponent(escape(str));
+    } catch (e) {
+        return str;
+    }
+}
+
 if (url.indexOf('/youtubei/v1/player') !== -1) {
     if (contentType.indexOf('application/json') !== -1) {
         // A. JSON 格式处理 (Chrome / Safari 浏览器端)
         try {
-            let body = typeof $response.body === 'string' ? JSON.parse($response.body) : JSON.parse(new TextDecoder().decode($response.body));
+            let bodyStr = bytesToString($response.body);
+            let body = JSON.parse(bodyStr);
             
             // 递归清理 adPlacements 字段
             function cleanJson(obj) {
@@ -115,7 +130,6 @@ function makeKey(tag, wireType) {
     return makeVarint((tag << 3) | wireType);
 }
 
-// 修复 makeVarint 的语法，Surge JS 引擎支持标准无符号右移
 function makeVarint(value) {
     let bytes = [];
     while (value >= 0x80) {
