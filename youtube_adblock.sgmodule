@@ -1,0 +1,21 @@
+#!name=YouTube 广告拦截一键模块 (GitHub)
+#!desc=YouTube 广告拦截模块（支持网页 JSON 和 App 端 Protobuf 双模去广告）。已配置托管至个人 GitHub。
+#!system=mac,ios
+
+[Rule]
+# 拦截 UDP 443 端口，强迫客户端降级到 TCP 触发 MITM
+AND,((PROTOCOL,UDP),(DEST-PORT,443)),REJECT-DROP
+# 域名混淆对抗：直接拦截 googlevideo 广告视频流请求
+URL-REGEX,(^https?:\/\/[\w-]+\.googlevideo\.com\/videoplayback\?(?=.*(adformat|ad_type|pcmd|ovr=))),REJECT
+
+[Replacer]
+# 移除 Alt-Svc 响应头，阻止向 QUIC 升级
+youtube-alt-svc = type=response-header,pattern=^https?:\/\/.*(youtube|google).*$,field=Alt-Svc,mode=delete
+
+[Script]
+# 数据篡改：使用 GitHub 托管的 JS 脚本
+youtube-adblock = type=http-response,pattern=^https:\/\/www\.youtube\.com\/youtubei\/v1\/player\?,requires-body=1,binary-body-mode=1,max-size=5242880,script-path=https://raw.githubusercontent.com/anyi11/mac-cast/main/youtube_adblock.js
+
+[MITM]
+# 启用 HTTPS 解密的域名范围
+hostname = %APPEND% *.googlevideo.com, www.youtube.com, youtubei.googleapis.com
