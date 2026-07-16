@@ -4,10 +4,10 @@
 
 [Script]
 # 数据篡改：用于处理 player 接口的广告数据 (requires-body=1)
-YouTube广告拦截 = type=http-response,pattern=^https?://www\.youtube\.com/youtubei/v1/player\?,requires-body=1,binary-mode=true,max-size=5242880,script-path=https://fastly.jsdelivr.net/gh/anyi11/mac-cast@main/youtube_adblock.js
+YouTube广告拦截 = type=http-response,pattern=^https?://www\.youtube\.com/youtubei/v1/player\?,requires-body=1,binary-mode=true,max-size=5242880,script-path=https://fastly.jsdelivr.net/gh/anyi11/mac-cast@3a0f2bc/youtube_adblock.js
 
 # 协议降级：用于移除所有 YouTube 响应的 Alt-Svc 头部 (requires-body=0)
-YouTubeAltSvc移除 = type=http-response,pattern=^https?://.*\.youtube\.com/.*,requires-body=0,script-path=https://fastly.jsdelivr.net/gh/anyi11/mac-cast@main/youtube_adblock.js
+YouTubeAltSvc移除 = type=http-response,pattern=^https?://.*\.youtube\.com/.*,requires-body=0,script-path=https://fastly.jsdelivr.net/gh/anyi11/mac-cast@3a0f2bc/youtube_adblock.js
 
 [MITM]
 hostname = %APPEND% *.googlevideo.com, www.youtube.com, youtubei.googleapis.com
