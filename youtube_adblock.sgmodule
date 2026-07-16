@@ -1,6 +1,10 @@
 #!name=YouTube 广告拦截一键模块 (GitHub)
 #!desc=YouTube 广告拦截模块（支持网页 JSON 和 App 端 Protobuf 双模去广告）。已配置托管至个人 GitHub。
 
+[Rule]
+# 拦截 UDP 443 (QUIC) 端口，强迫客户端降级到 TCP 触发 MITM
+AND,((PROTOCOL,UDP),(DEST-PORT,443)),REJECT-DROP
+
 [Script]
 # 数据篡改：用于处理 player 接口的广告数据 (requires-body=1)
 youtube_ad_block = type=http-response,pattern=^https?://www\.youtube\.com/youtubei/v1/player\?,requires-body=1,binary-mode=true,max-size=5242880,script-path=https://fastly.jsdelivr.net/gh/anyi11/mac-cast@3a0f2bc/youtube_adblock.js
