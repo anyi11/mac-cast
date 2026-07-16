@@ -2,8 +2,18 @@
 #!desc=YouTube 广告拦截模块（支持网页 JSON 和 App 端 Protobuf 双模去广告）。已配置托管至个人 GitHub。
 
 [Rule]
-# 拦截 UDP 443 (QUIC) 端口，强迫客户端降级到 TCP 触发 MITM
-AND,((PROTOCOL,UDP),(DEST-PORT,443)),REJECT-DROP
+# 针对性拦截 UDP (QUIC) 协议，强迫客户端降级到 TCP 触发 MITM
+AND,((DOMAIN-SUFFIX,googlevideo.com),(PROTOCOL,UDP)),REJECT
+AND,((DOMAIN,youtubei.googleapis.com),(PROTOCOL,UDP)),REJECT
+
+[URL Rewrite]
+# 针对视频流参数重写：去除 ctier=L 参数以跳过广告流限制
+(^https?:\/\/[\w-]+\.googlevideo\.com\/(?!dclk_video_ads).+?)&ctier=L(&.+?),ctier,(.+) $1$2$3 302
+# 拦截各类广告数据上报、广告定位及跟踪 API
+^https?:\/\/[\w-]+\.googlevideo\.com\/(?!(dclk_video_ads|videoplayback\?)).+&oad - reject-200
+^https?:\/\/(www|s)\.youtube\.com\/api\/stats\/ads - reject-200
+^https?:\/\/(www|s)\.youtube\.com\/(pagead|ptracking) - reject-200
+^https?:\/\/s\.youtube\.com\/api\/stats\/qoe\?adcontext - reject-200
 
 [Header Rewrite]
 # 移除 Alt-Svc 响应头，阻止向 QUIC 升级
