@@ -1,6 +1,6 @@
 /**
  * Surge JavaScript for YouTube Adblock
- * Optimized for high performance on large response payloads.
+ * Optimized for high performance and low memory consumption.
  */
 
 const url = $request.url;
@@ -11,16 +11,15 @@ const contentType = headers['Content-Type'] || headers['content-type'] || '';
 if (headers['Alt-Svc']) delete headers['Alt-Svc'];
 if (headers['alt-svc']) delete headers['alt-svc'];
 
-// 高性能分块转换为字符串 (解决大 JSON 循环拼接导致 Surge 脚本超时的问题)
+// 极速且节省内存的分块转译函数 (利用数组 join 减少临时 String 内存分配与 GC 压力)
 function bytesToString(arr) {
     if (typeof arr === 'string') return arr;
-    let str = '';
-    const chunk = 8192; // 8K 分块，防止超出 JS 引擎调用栈限制
+    let parts = [];
+    const chunk = 16384; // 16K 分块大小
     for (let i = 0; i < arr.length; i += chunk) {
-        let subArray = arr.subarray(i, i + chunk);
-        // 使用 native apply 进行批量转换，性能比单字节循环提升数千倍
-        str += String.fromCharCode.apply(null, subArray);
+        parts.push(String.fromCharCode.apply(null, arr.subarray(i, i + chunk)));
     }
+    let str = parts.join('');
     try {
         return decodeURIComponent(escape(str));
     } catch (e) {
