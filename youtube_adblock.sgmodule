@@ -2,8 +2,9 @@
 #!desc=YouTube 广告拦截模块（支持网页 JSON 和 App 端 Protobuf 双模去广告）。已配置托管至个人 GitHub。
 
 [Rule]
-# 针对性拦截 UDP (QUIC) 协议，强迫客户端降级到 TCP 触发 MITM
+# 针对性拦截 UDP (QUIC) 协议，强迫客户端降级到 TCP 触发 MITM (必须拦截 youtube.com 以确保 player 接口降级)
 AND,((DOMAIN-SUFFIX,googlevideo.com),(PROTOCOL,UDP)),REJECT
+AND,((DOMAIN-SUFFIX,youtube.com),(PROTOCOL,UDP)),REJECT
 AND,((DOMAIN,youtubei.googleapis.com),(PROTOCOL,UDP)),REJECT
 
 [URL Rewrite]
@@ -22,8 +23,8 @@ AND,((DOMAIN,youtubei.googleapis.com),(PROTOCOL,UDP)),REJECT
 ^https?:\/\/.*\.googleapis\.com\/.* header-del Alt-Svc
 
 [Script]
-# 数据篡改：同时处理 www.youtube.com 和 youtubei.googleapis.com 的 player 接口 (指定优化版 JS)
-youtube_ad_block = type=http-response,pattern=^https:\/\/.*youtubei?(\.googleapis)?\.com\/youtubei\/v1\/player,requires-body=1,binary-mode=true,max-size=5242880,script-path=https://fastly.jsdelivr.net/gh/anyi11/mac-cast@4ad6789/youtube_adblock.js
+# 数据篡改：同时处理 www.youtube.com 和 youtubei.googleapis.com 的 player 接口 (指定内存优化版 JS)
+youtube_ad_block = type=http-response,pattern=^https:\/\/.*youtubei?(\.googleapis)?\.com\/youtubei\/v1\/player,requires-body=1,binary-mode=true,max-size=5242880,script-path=https://fastly.jsdelivr.net/gh/anyi11/mac-cast@d44578b/youtube_adblock.js
 
 [MITM]
 hostname = %APPEND% *.googlevideo.com,www.youtube.com,youtubei.googleapis.com
