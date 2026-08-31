@@ -1,0 +1,80 @@
+#!name=全网主流视频与应用去广告综合模块
+#!desc=集成爱优腾芒、B站、YouTube、短剧、穿山甲(Pangle)、腾讯优量汇、百度联盟等全网主流视频与应用广告拦截规则 (兼容 Surge 与 Shadowrocket)
+
+[Rule]
+# 1. 穿山甲 / 字节跳动广告联盟 SDK (红果短剧/番茄小说等)
+DOMAIN-SUFFIX,pangolin-sdk-toutiao.com,REJECT
+DOMAIN-SUFFIX,pangolin-sdk-toutiao-b.com,REJECT
+DOMAIN-SUFFIX,pglstatp-toutiao.com,REJECT
+DOMAIN-SUFFIX,pangle.io,REJECT
+DOMAIN-SUFFIX,bytedance.ad,REJECT
+DOMAIN,toblog.ctobsnssdk.com,REJECT
+DOMAIN,mon.zijieapi.com,REJECT
+DOMAIN-KEYWORD,pangolin,REJECT
+
+# 2. 腾讯优量汇 (GDT) / 腾讯视频广告分发
+DOMAIN-SUFFIX,gdt.qq.com,REJECT
+DOMAIN-SUFFIX,e.qq.com,REJECT
+DOMAIN-SUFFIX,l.qq.com,REJECT
+DOMAIN-SUFFIX,adsmind.gdtimg.com,REJECT
+DOMAIN-SUFFIX,pgdt.gtimg.cn,REJECT
+DOMAIN-SUFFIX,tmead.y.qq.com,REJECT
+DOMAIN,adstats.tencentmusic.com,REJECT
+
+# 3. 阿里妈妈 / 优酷广告分发
+DOMAIN-SUFFIX,alimama.com,REJECT
+DOMAIN-SUFFIX,tanx.com,REJECT
+DOMAIN-SUFFIX,e.tanx.com,REJECT
+DOMAIN-SUFFIX,atanx.alicdn.com,REJECT
+DOMAIN-SUFFIX,val.youku.com,REJECT
+DOMAIN-SUFFIX,ad.api.3g.youku.com,REJECT
+
+# 4. 爱奇艺广告 SDK
+DOMAIN-SUFFIX,cupid.iqiyi.com,REJECT
+DOMAIN-SUFFIX,paopao.iqiyi.com,REJECT
+DOMAIN-SUFFIX,msg.iqiyi.com,REJECT
+DOMAIN-SUFFIX,ad.m.iqiyi.com,REJECT
+
+# 5. 芒果 TV 广告分发
+DOMAIN-SUFFIX,da.mgtv.com,REJECT
+DOMAIN-SUFFIX,v2.da.mgtv.com,REJECT
+DOMAIN-SUFFIX,log.v2.mgtv.com,REJECT
+DOMAIN-SUFFIX,mobilelog.mgtv.com,REJECT
+
+# 6. 百度联盟 / 移动广告 (MobAds)
+DOMAIN-SUFFIX,mobads.baidu.com,REJECT
+DOMAIN-SUFFIX,mobads-logs.baidu.com,REJECT
+DOMAIN-SUFFIX,cpro.baidu.com,REJECT
+DOMAIN-SUFFIX,pos.baidu.com,REJECT
+
+# 7. 快手广告联盟
+DOMAIN-SUFFIX,adukwai.com,REJECT
+DOMAIN-SUFFIX,e.kuaishou.com,REJECT
+
+# 8. Google / YouTube 网页及应用广告追踪拦截
+DOMAIN-SUFFIX,doubleclick.net,REJECT
+DOMAIN-SUFFIX,googleadservices.com,REJECT
+DOMAIN-SUFFIX,googlesyndication.com,REJECT
+DOMAIN-KEYWORD,ads.youtube,REJECT
+DOMAIN-KEYWORD,youtube-ui.l.google.com,REJECT
+
+# 9. 权威广告规则集订阅 (每天自动更新)
+RULE-SET,https://anti-ad.net/surge.txt,REJECT,update-interval=86400
+RULE-SET,https://fastly.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Surge/Advertising/Advertising.list,REJECT,update-interval=86400
+RULE-SET,https://fastly.jsdelivr.net/gh/ACL4SSR/ACL4SSR@master/Clash/BanProgramAD.list,REJECT,update-interval=86400
+
+[Header Rewrite]
+# 原生移除 Alt-Svc 响应头，阻止 QUIC 升级导致解码异常
+^https?:\/\/.*\.youtube\.com\/.* header-del Alt-Svc
+^https?:\/\/.*\.googlevideo\.com\/.* header-del Alt-Svc
+^https?:\/\/.*\.bilibili\.com\/.* header-del Alt-Svc
+^https?:\/\/.*\.iqiyi\.com\/.* header-del Alt-Svc
+^https?:\/\/.*\.youku\.com\/.* header-del Alt-Svc
+
+[URL Rewrite]
+# 拦截 YouTube 视频统计及追踪 API
+^https?:\/\/(www|s)\.youtube\.com\/api\/stats\/ads - reject-200
+^https?:\/\/(www|s)\.youtube\.com\/(pagead|ptracking) - reject-200
+^https?:\/\/s\.youtube\.com\/api\/stats\/qoe\?adcontext - reject-200
+# 拦截通用广告配置与上报
+^https?:\/\/.*\/api\/(ad|advertisement|splash|report_ad)\/ - reject

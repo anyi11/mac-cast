@@ -1,0 +1,61 @@
+# ========================================================
+# 规则名称: Video_Ads (全网主流视频与应用广告拦截规则列表)
+# 适用平台: Surge / Shadowrocket / Quantumult X / Loon / Clash
+# 包含平台: 穿山甲/红果/番茄、腾讯优量汇、阿里优酷、爱奇艺、芒果TV、百度联盟、快手、YouTube
+# ========================================================
+
+# 1. 穿山甲 / 字节跳动广告联盟 SDK
+DOMAIN-SUFFIX,pangolin-sdk-toutiao.com
+DOMAIN-SUFFIX,pangolin-sdk-toutiao-b.com
+DOMAIN-SUFFIX,pglstatp-toutiao.com
+DOMAIN-SUFFIX,pangle.io
+DOMAIN-SUFFIX,bytedance.ad
+DOMAIN,toblog.ctobsnssdk.com
+DOMAIN,mon.zijieapi.com
+DOMAIN-KEYWORD,pangolin
+
+# 2. 腾讯优量汇 (GDT) / 腾讯视频广告
+DOMAIN-SUFFIX,gdt.qq.com
+DOMAIN-SUFFIX,e.qq.com
+DOMAIN-SUFFIX,l.qq.com
+DOMAIN-SUFFIX,adsmind.gdtimg.com
+DOMAIN-SUFFIX,pgdt.gtimg.cn
+DOMAIN-SUFFIX,tmead.y.qq.com
+DOMAIN,adstats.tencentmusic.com
+
+# 3. 阿里妈妈 / 优酷广告
+DOMAIN-SUFFIX,alimama.com
+DOMAIN-SUFFIX,tanx.com
+DOMAIN-SUFFIX,e.tanx.com
+DOMAIN-SUFFIX,atanx.alicdn.com
+DOMAIN-SUFFIX,val.youku.com
+DOMAIN-SUFFIX,ad.api.3g.youku.com
+
+# 4. 爱奇艺广告
+DOMAIN-SUFFIX,cupid.iqiyi.com
+DOMAIN-SUFFIX,paopao.iqiyi.com
+DOMAIN-SUFFIX,msg.iqiyi.com
+DOMAIN-SUFFIX,ad.m.iqiyi.com
+
+# 5. 芒果 TV 广告
+DOMAIN-SUFFIX,da.mgtv.com
+DOMAIN-SUFFIX,v2.da.mgtv.com
+DOMAIN-SUFFIX,log.v2.mgtv.com
+DOMAIN-SUFFIX,mobilelog.mgtv.com
+
+# 6. 百度移动广告 (MobAds)
+DOMAIN-SUFFIX,mobads.baidu.com
+DOMAIN-SUFFIX,mobads-logs.baidu.com
+DOMAIN-SUFFIX,cpro.baidu.com
+DOMAIN-SUFFIX,pos.baidu.com
+
+# 7. 快手联盟广告
+DOMAIN-SUFFIX,adukwai.com
+DOMAIN-SUFFIX,e.kuaishou.com
+
+# 8. Google / YouTube 广告与追踪
+DOMAIN-SUFFIX,doubleclick.net
+DOMAIN-SUFFIX,googleadservices.com
+DOMAIN-SUFFIX,googlesyndication.com
+DOMAIN-KEYWORD,ads.youtube
+DOMAIN-KEYWORD,youtube-ui.l.google.com
