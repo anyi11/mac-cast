@@ -2,31 +2,36 @@
 #!desc=针对红果免费短剧、红果小说、番茄免费小说、番茄畅听、番茄音乐版的一体化解锁 VIP 及净化去广告模块 (兼容 Surge 与 Shadowrocket)
 
 [Rule]
-# 穿山甲 / 字节跳动广告 SDK 域名拦截
+# 1. 核心铁律：强制降级字节跳动 TTNet 网络协议 (阻断 QUIC/UDP 443，强迫走 TCP 触发 MitM 解密)
+AND,((PROTOCOL,UDP),(DEST-PORT,443)),REJECT-DROP
+
+# 2. 穿山甲 / 字节跳动广告 SDK 域名及打点拦截
 DOMAIN-SUFFIX,pangolin-sdk-toutiao.com,REJECT
 DOMAIN-SUFFIX,pangolin-sdk-toutiao-b.com,REJECT
 DOMAIN-SUFFIX,pglstatp-toutiao.com,REJECT
 DOMAIN-SUFFIX,pangle.io,REJECT
 DOMAIN,toblog.ctobsnssdk.com,REJECT
 DOMAIN-KEYWORD,pangolin,REJECT
+DOMAIN-KEYWORD,ads-normal,REJECT
 
 [Header Rewrite]
-# 原生移除 Alt-Svc 防止 HTTP/3 响应乱码
+# 移除 Alt-Svc 响应头，阻止向 HTTP/3 (QUIC) 升级并防止乱码
 ^https?:\/\/.*\.fqnovel\.com\/.* header-del Alt-Svc
 ^https?:\/\/.*\.zijieapi\.com\/.* header-del Alt-Svc
+^https?:\/\/.*\.snssdk\.com\/.* header-del Alt-Svc
+^https?:\/\/.*\.amemv\.com\/.* header-del Alt-Svc
 ^https?:\/\/.*\.readingnovel\.com\/.* header-del Alt-Svc
 
 [URL Rewrite]
 # 拦截开屏与广告加载接口
-^https?:\/\/.*\.fqnovel\.com\/(reading\/)?(ad|union_ad|splash_ad|reward_ad)\/ - reject
-^https?:\/\/.*\.zijieapi\.com\/(api\/ad|ad\/union)\/ - reject
+^https?:\/\/.*\.(fqnovel|zijieapi|snssdk|amemv)\.com\/(reading\/)?(ad|union_ad|splash_ad|reward_ad|api\/ad|ad\/union)\/ - reject
 
 [Script]
-# VIP 会员状态及权限解锁
-hongguo_vip = type=http-response,pattern=^https?:\/\/.*\.fqnovel\.com\/(reading\/)?(v\d+\/)?(user|vip|account|my|drama|video)\/,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/anyi11/mac-cast/main/scripts/hongguo_fanqie_vip.js
+# VIP 会员状态、用户鉴权与短剧/小说全集解锁
+hongguo_vip = type=http-response,pattern=^https?:\/\/.*(fqnovel|zijieapi|amemv|snssdk|readingnovel)\.com\/.*(user|vip|account|my|drama|video|play|auth|privilege|book|chapter|detail|rights),requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/anyi11/mac-cast/main/scripts/hongguo_fanqie_vip.js
 
 # 短剧/小说章节与阅读器广告净化
-hongguo_ads = type=http-response,pattern=^https?:\/\/.*\.fqnovel\.com\/(reading\/)?(v\d+\/)?(feed|chapter|detail|config|content|drama|reader)\/,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/anyi11/mac-cast/main/scripts/hongguo_fanqie_ads.js
+hongguo_ads = type=http-response,pattern=^https?:\/\/.*(fqnovel|zijieapi|amemv|snssdk|readingnovel)\.com\/.*(feed|chapter|detail|config|content|drama|reader|splash|ad|settings|scene),requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/anyi11/mac-cast/main/scripts/hongguo_fanqie_ads.js
 
 [MITM]
-hostname = %APPEND% *.fqnovel.com,api*.fqnovel.com,api*.zijieapi.com,*.readingnovel.com,*.bytegecko.com
+hostname = %APPEND% *.fqnovel.com,api*.fqnovel.com,*.zijieapi.com,api*.zijieapi.com,*.snssdk.com,api*.snssdk.com,*.amemv.com,api*.amemv.com,*.readingnovel.com,*.bytegecko.com,*.volces.com

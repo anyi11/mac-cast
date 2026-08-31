@@ -1,5 +1,5 @@
 /**
- * Hongguo & Fanqie Apps VIP Unlock Script
+ * Hongguo Drama & Fanqie Apps Comprehensive VIP & Drama Unlock Script
  * Target Apps:
  * - 红果免费短剧 (com.phoenix.video)
  * - 红果小说 (com.phoenix.read)
@@ -29,6 +29,57 @@ if (rawBody) {
         const EXPIRE_TIME = 2147483647; // 2038-01-19T03:14:07Z
         const LEFT_TIME = 2147483647;
 
+        function unlockDramaAndEpisodes(target) {
+            if (!target || typeof target !== 'object') return;
+
+            // Handle episode and drama unlocking
+            if (Array.isArray(target)) {
+                for (let item of target) {
+                    if (item && typeof item === 'object') {
+                        if ('is_locked' in item) item.is_locked = 0;
+                        if ('is_lock' in item) item.is_lock = 0;
+                        if ('lock_status' in item) item.lock_status = 0;
+                        if ('is_free' in item) item.is_free = 1;
+                        if ('need_pay' in item) item.need_pay = 0;
+                        if ('need_ad' in item) item.need_ad = 0;
+                        if ('need_vip' in item) item.need_vip = 0;
+                        if ('can_watch' in item) item.can_watch = true;
+                        if ('can_play' in item) item.can_play = true;
+                        if ('can_view' in item) item.can_view = true;
+                        if ('unlock_status' in item) item.unlock_status = 1;
+                        if ('has_unlocked' in item) item.has_unlocked = true;
+                        if ('unlocked' in item) item.unlocked = true;
+                        if ('play_auth' in item) item.play_auth = 1;
+                        if ('play_auth_status' in item) item.play_auth_status = 1;
+                        if ('is_vip' in item) item.is_vip = 1;
+                        unlockDramaAndEpisodes(item);
+                    }
+                }
+            } else {
+                if ('is_locked' in target) target.is_locked = 0;
+                if ('is_lock' in target) target.is_lock = 0;
+                if ('lock_status' in target) target.lock_status = 0;
+                if ('is_free' in target) target.is_free = 1;
+                if ('need_pay' in target) target.need_pay = 0;
+                if ('need_ad' in target) target.need_ad = 0;
+                if ('need_vip' in target) target.need_vip = 0;
+                if ('can_watch' in target) target.can_watch = true;
+                if ('can_play' in target) target.can_play = true;
+                if ('can_view' in target) target.can_view = true;
+                if ('unlock_status' in target) target.unlock_status = 1;
+                if ('has_unlocked' in target) target.has_unlocked = true;
+                if ('unlocked' in target) target.unlocked = true;
+                if ('play_auth' in target) target.play_auth = 1;
+                if ('play_auth_status' in target) target.play_auth_status = 1;
+
+                for (let k in target) {
+                    if (typeof target[k] === 'object' && target[k] !== null) {
+                        unlockDramaAndEpisodes(target[k]);
+                    }
+                }
+            }
+        }
+
         function modifyVip(target) {
             if (!target || typeof target !== 'object') return;
 
@@ -48,11 +99,24 @@ if (rawBody) {
             if ('can_read' in target) target.can_read = true;
             if ('can_listen' in target) target.can_listen = true;
             if ('can_watch' in target) target.can_watch = true;
+            if ('auth_status' in target) target.auth_status = 1;
+            if ('user_type' in target && target.user_type === 0) target.user_type = 1;
 
             // Recurse into nested structures
             for (let k in target) {
                 if (typeof target[k] === 'object' && target[k] !== null) {
-                    if (k === 'vip_info' || k === 'user_vip_info' || k === 'account_info' || k === 'user_info' || k === 'user_extra' || k === 'vip' || k === 'user') {
+                    if (
+                        k === 'vip_info' ||
+                        k === 'user_vip_info' ||
+                        k === 'account_info' ||
+                        k === 'user_info' ||
+                        k === 'user_extra' ||
+                        k === 'vip' ||
+                        k === 'user' ||
+                        k === 'privilege' ||
+                        k === 'rights_info' ||
+                        k === 'auth_info'
+                    ) {
                         target[k].is_vip = 1;
                         target[k].is_svip = 1;
                         target[k].is_vip_user = 1;
@@ -69,10 +133,12 @@ if (rawBody) {
         }
 
         modifyVip(obj);
+        unlockDramaAndEpisodes(obj);
 
-        // Specific handling for common ByteDance reader/drama data structures
+        // Specific handling for top-level data structure
         if (obj.data) {
             modifyVip(obj.data);
+            unlockDramaAndEpisodes(obj.data);
             if (typeof obj.data === 'object' && !Array.isArray(obj.data)) {
                 obj.data.is_vip = 1;
                 obj.data.vip_type = 1;
@@ -87,7 +153,8 @@ if (rawBody) {
                         left_time: LEFT_TIME,
                         vip_type: 1,
                         vip_level: 1,
-                        status: 1
+                        status: 1,
+                        is_in_vip: true
                     };
                 }
             }

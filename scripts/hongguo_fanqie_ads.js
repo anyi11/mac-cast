@@ -1,5 +1,5 @@
 /**
- * Hongguo & Fanqie Apps Ad Cleaner Script
+ * Hongguo Drama & Fanqie Apps Ad Cleaner Script
  * Target Apps:
  * - 红果免费短剧 (com.phoenix.video)
  * - 红果小说 (com.phoenix.read)
@@ -45,7 +45,11 @@ if (rawBody) {
             /reward_ad/i,
             /unlock_video_ad/i,
             /common_ad/i,
-            /read_ad/i
+            /read_ad/i,
+            /pangle/i,
+            /pangolin/i,
+            /ad_rit/i,
+            /ad_unit/i
         ];
 
         function isAdKey(k) {
@@ -59,7 +63,6 @@ if (rawBody) {
                 for (let i = target.length - 1; i >= 0; i--) {
                     let item = target[i];
                     if (item && typeof item === 'object') {
-                        // Check if array item represents an ad entry
                         if (
                             item.ad_info ||
                             item.ad_data ||
@@ -67,7 +70,9 @@ if (rawBody) {
                             item.is_ad === true ||
                             item.cell_type === 'ad' ||
                             item.cell_type === 'feed_ad' ||
+                            item.cell_type === 'drama_ad' ||
                             item.content_type === 'ad' ||
+                            item.item_type === 'ad' ||
                             (item.type && typeof item.type === 'string' && item.type.toLowerCase().includes('ad'))
                         ) {
                             target.splice(i, 1);
@@ -103,11 +108,13 @@ if (rawBody) {
         if (obj.data) {
             cleanAds(obj.data);
             if (typeof obj.data === 'object' && !Array.isArray(obj.data)) {
-                if ('need_ad' in obj.data) obj.data.need_ad = 0;
-                if ('has_ad' in obj.data) obj.data.has_ad = 0;
-                if ('ad_free' in obj.data) obj.data.ad_free = 1;
-                if ('is_ad_free' in obj.data) obj.data.is_ad_free = 1;
-                if ('show_ad' in obj.data) obj.data.show_ad = false;
+                obj.data.need_ad = 0;
+                obj.data.has_ad = 0;
+                obj.data.ad_free = 1;
+                obj.data.is_ad_free = 1;
+                obj.data.show_ad = false;
+                obj.data.ad_show = false;
+                obj.data.enable_ad = false;
             }
         }
 
